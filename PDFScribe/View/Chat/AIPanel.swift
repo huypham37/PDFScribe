@@ -235,16 +235,18 @@ struct AIPanel: View {
                             }
                             .padding(.vertical, 8)
                         }
+                        
+                        // Bottom anchor for auto-scroll
+                        Color.clear
+                            .frame(height: 1)
+                            .id("bottom")
                     }
                     .padding(16)
                 }
-                .onChange(of: viewModel.messages.count) { _ in
-                    if let lastMessage = viewModel.messages.last {
-                        withAnimation(.easeOut(duration: 0.2)) {
-                            proxy.scrollTo(lastMessage.id, anchor: .bottom)
-                        }
-                    }
-                }
+                // Auto-scroll on any content change
+                .onChange(of: viewModel.messages.count) { _ in scrollToBottom(proxy) }
+                .onChange(of: viewModel.toolCalls.count) { _ in scrollToBottom(proxy) }
+                .onChange(of: viewModel.isProcessing) { _ in scrollToBottom(proxy) }
             }
             
             Spacer()
@@ -252,17 +254,12 @@ struct AIPanel: View {
             // Bottom section
             VStack(spacing: 12) {
                 // Chat input field with mention support
-                HStack(spacing: 8) {
+                HStack(alignment: .bottom, spacing: 8) {
                     ZStack(alignment: .bottomLeading) {
-                        TextField("Message...", text: $inputText, onEditingChanged: { _ in }, onCommit: {
-                            if showingMentionPicker && !filteredFiles.isEmpty {
-                                selectFile(filteredFiles[selectedMentionIndex])
-                            } else {
-                                sendMessage()
-                            }
-                        })
+                        TextField("Message...", text: $inputText, axis: .vertical)
                             .textFieldStyle(.plain)
                             .font(.system(size: 13))
+                            .lineLimit(1...5)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 10)
                             .background(Color(NSColor.controlBackgroundColor))
@@ -271,33 +268,10 @@ struct AIPanel: View {
                             .onChange(of: inputText) { newValue in
                                 handleTextChange(newValue)
                             }
-                            .onKeyPress(.upArrow) {
-                                if showingMentionPicker {
-                                    selectedMentionIndex = max(0, selectedMentionIndex - 1)
-                                    return .handled
+                            .onSubmit {
+                                if !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                    sendMessage()
                                 }
-                                return .ignored
-                            }
-                            .onKeyPress(.downArrow) {
-                                if showingMentionPicker {
-                                    selectedMentionIndex = min(filteredFiles.count - 1, selectedMentionIndex + 1)
-                                    return .handled
-                                }
-                                return .ignored
-                            }
-                            .onKeyPress(.tab) {
-                                if showingMentionPicker && !filteredFiles.isEmpty {
-                                    selectFile(filteredFiles[selectedMentionIndex])
-                                    return .handled
-                                }
-                                return .ignored
-                            }
-                            .onKeyPress(.escape) {
-                                if showingMentionPicker {
-                                    showingMentionPicker = false
-                                    return .handled
-                                }
-                                return .ignored
                             }
                         
                         if showingMentionPicker {
@@ -358,6 +332,14 @@ struct AIPanel: View {
         }
     }
     
+    private func scrollToBottom(_ proxy: ScrollViewProxy) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            withAnimation(.easeOut(duration: 0.2)) {
+                proxy.scrollTo("bottom", anchor: .bottom)
+            }
+        }
+    }
+    
     private func sendMessage() {
         guard !viewModel.isProcessing else { return }
         
@@ -365,7 +347,11 @@ struct AIPanel: View {
         guard !text.isEmpty else { return }
         
         parseMentions(from: text)
-        inputText = ""
+        
+        // Clear input on main thread to ensure UI update
+        Task { @MainActor in
+            inputText = ""
+        }
         
         Task {
             await viewModel.sendMessage(text)

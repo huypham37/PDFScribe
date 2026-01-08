@@ -298,6 +298,7 @@ class OpenCodeStrategy: AIProviderStrategy {
         
         guard notification.method == "session/update" else { return }
         
+        print("[NOTIFICATION] Received update type: \(sessionUpdate)")
         switch sessionUpdate {
         case "agent_message_chunk":
             if let content = update["content"] as? [String: Any],
