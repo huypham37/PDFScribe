@@ -12,15 +12,25 @@ struct PDFScribeApp: App {
     
     init() {
         let appVM = AppViewModel()
+        let pdfVM = PDFViewModel()
+        let editorVM = EditorViewModel()
+        let fileSvc = FileService()
         let service = AIService()
+        let aiVM = AIViewModel(aiService: service)
         
         _appViewModel = StateObject(wrappedValue: appVM)
+        _pdfViewModel = StateObject(wrappedValue: pdfVM)
+        _editorViewModel = StateObject(wrappedValue: editorVM)
+        _fileService = StateObject(wrappedValue: fileSvc)
         _aiService = StateObject(wrappedValue: service)
-        _aiViewModel = StateObject(wrappedValue: AIViewModel(aiService: service))
+        _aiViewModel = StateObject(wrappedValue: aiVM)
         
-        // Set the appViewModel reference after initialization
+        // Set cross-references after initialization
         Task { @MainActor in
             service.appViewModel = appVM
+            aiVM.editorViewModel = editorVM
+            aiVM.pdfViewModel = pdfVM
+            aiVM.fileService = fileSvc
         }
         
         // Bring app to foreground

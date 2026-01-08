@@ -20,7 +20,7 @@ class OpenCodeStrategy: AIProviderStrategy {
         self.workingDirectory = workingDirectory ?? FileManager.default.homeDirectoryForCurrentUser.path
     }
     
-    func send(message: String, context: [AIMessage]) async throws -> String {
+    func send(message: String, context: AIContext) async throws -> String {
         if !isInitialized {
             try await initialize()
             try await createSession()
@@ -106,15 +106,47 @@ class OpenCodeStrategy: AIProviderStrategy {
         self.sessionId = sessionId
     }
     
-    private func sendPrompt(sessionId: String, message: String, context: [AIMessage]) async throws -> String {
+    private func sendPrompt(sessionId: String, message: String, context: AIContext) async throws -> String {
         guard let rpcClient = rpcClient,
               let processManager = processManager else {
             throw AIError.serverError("Client not initialized")
         }
         
-        let contentBlocks: [[String: Any]] = [
-            ["type": "text", "text": message]
-        ]
+        var contentBlocks: [[String: Any]] = []
+        
+        // Add user message
+        contentBlocks.append(["type": "text", "text": message])
+        
+        // Add current note file as resource if available
+        if let fileURL = context.currentFile,
+           let content = context.currentFileContent {
+            let mimeType = fileURL.pathExtension == "md" ? "text/markdown" : "text/plain"
+            contentBlocks.append([
+                "type": "resource",
+                "resource": [
+                    "uri": fileURL.absoluteString,
+                    "mimeType": mimeType,
+                    "text": content
+                ]
+            ])
+        }
+        
+        // Add editor selection if available
+        if let selection = context.selection, !selection.isEmpty {
+            contentBlocks.append([
+                "type": "text",
+                "text": "Selected text from editor:\n\(selection)"
+            ])
+        }
+        
+        // Add PDF selection if available
+        if let pdfSelection = context.pdfSelection, !pdfSelection.isEmpty {
+            let pageInfo = context.pdfPage.map { " (Page \($0))" } ?? ""
+            contentBlocks.append([
+                "type": "text",
+                "text": "Selected text from PDF\(pageInfo):\n\(pdfSelection)"
+            ])
+        }
         
         let params: [String: Any] = [
             "sessionId": sessionId,

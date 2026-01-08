@@ -9,6 +9,9 @@ class AIViewModel: ObservableObject, ToolCallHandler {
     @Published var errorMessage: String?
     
     let aiService: AIService
+    weak var editorViewModel: EditorViewModel?
+    weak var pdfViewModel: PDFViewModel?
+    weak var fileService: FileService?
     
     init(aiService: AIService) {
         self.aiService = aiService
@@ -47,7 +50,22 @@ class AIViewModel: ObservableObject, ToolCallHandler {
         
         do {
             let aiMessages = messages.map { AIMessage(role: $0.role.rawValue, content: $0.content) }
-            let response = try await aiService.sendMessage(text, context: aiMessages)
+            
+            // Gather context from editor and PDF
+            let currentFile = fileService?.currentNoteURL
+            let currentFileContent = editorViewModel?.content
+            let pdfSelection = pdfViewModel?.currentSelection
+            
+            let context = AIContext(
+                messages: aiMessages,
+                currentFile: currentFile,
+                currentFileContent: currentFileContent,
+                selection: nil, // TODO: Add editor text selection if needed
+                pdfURL: nil, // TODO: Add current PDF URL from pdfViewModel if needed
+                pdfSelection: pdfSelection?.text,
+                pdfPage: pdfSelection?.pageNumber
+            )
+            let response = try await aiService.sendMessage(text, context: context)
             
             let assistantMessage = ChatMessage(role: .assistant, content: response)
             messages.append(assistantMessage)
@@ -171,7 +189,7 @@ struct AIPanel: View {
             // Chat Content - clean white space
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 20) {
+                    LazyVStack(alignment: .leading, spacing: 12) {
                         // Error message
                         if let error = viewModel.errorMessage {
                             HStack(spacing: 8) {

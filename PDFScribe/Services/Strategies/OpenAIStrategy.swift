@@ -8,7 +8,7 @@ class OpenAIStrategy: AIProviderStrategy {
         self.apiKey = apiKey
     }
     
-    func send(message: String, context: [AIMessage]) async throws -> String {
+    func send(message: String, context: AIContext) async throws -> String {
         guard !apiKey.isEmpty else {
             throw AIError.invalidAPIKey
         }
@@ -17,7 +17,7 @@ class OpenAIStrategy: AIProviderStrategy {
             throw AIError.invalidResponse
         }
         
-        var messages = context.map { ["role": $0.role, "content": $0.content] }
+        var messages = context.messages.map { ["role": $0.role, "content": $0.content] }
         messages.append(["role": "user", "content": message])
         
         let requestBody: [String: Any] = [

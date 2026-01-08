@@ -48,7 +48,7 @@ class AIService: ObservableObject {
         }
     }
     
-    func sendMessage(_ message: String, context: [AIMessage]) async throws -> String {
+    func sendMessage(_ message: String, context: AIContext) async throws -> String {
         guard let strategy = currentStrategy else {
             throw AIError.invalidAPIKey
         }
