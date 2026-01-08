@@ -137,7 +137,6 @@ struct AIPanel: View {
     @EnvironmentObject var appViewModel: AppViewModel
     @State private var inputText: String = ""
     @State private var showingSettings = false
-    @State private var showingModelPicker = false
     @State private var showingMentionPicker = false
     @State private var mentionFilter: String = ""
     @State private var selectedMentionIndex: Int = 0
@@ -252,24 +251,6 @@ struct AIPanel: View {
             
             // Bottom section
             VStack(spacing: 12) {
-                // Model selector - like reference "No model selected"
-                Button(action: { showingModelPicker.toggle() }) {
-                    HStack {
-                        Text(modelDisplayName)
-                            .font(.system(size: 13))
-                            .foregroundColor(.secondary)
-                        Spacer()
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
-                    .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
-                    .cornerRadius(8)
-                }
-                .buttonStyle(.plain)
-                .popover(isPresented: $showingModelPicker) {
-                    modelPickerView
-                }
-                
                 // Chat input field with mention support
                 HStack(spacing: 8) {
                     ZStack(alignment: .bottomLeading) {
@@ -472,59 +453,6 @@ struct AIPanel: View {
         .cornerRadius(8)
         .shadow(color: Color.black.opacity(0.2), radius: 8, x: 0, y: 4)
     }
-    
-    private var modelDisplayName: String {
-        if viewModel.aiService.apiKey.isEmpty {
-            return "No model selected"
-        }
-        return viewModel.aiService.provider == .openai ? "GPT-4" : "Claude"
-    }
-    
-    private var modelPickerView: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Button(action: {
-                viewModel.aiService.provider = .openai
-                showingModelPicker = false
-            }) {
-                HStack {
-                    Text("GPT-4")
-                        .font(.system(size: 13))
-                    Spacer()
-                    if viewModel.aiService.provider == .openai {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 12))
-                    }
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            
-            Divider()
-            
-            Button(action: {
-                viewModel.aiService.provider = .anthropic
-                showingModelPicker = false
-            }) {
-                HStack {
-                    Text("Claude")
-                        .font(.system(size: 13))
-                    Spacer()
-                    if viewModel.aiService.provider == .anthropic {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 12))
-                    }
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-        }
-        .frame(width: 160)
-        .background(Color(NSColor.windowBackgroundColor))
-    }
 }
 
 // MARK: - Message View
@@ -609,6 +537,56 @@ struct AISettingsView: View {
                     TextField("/usr/local/bin/opencode", text: $aiService.opencodePath)
                         .textFieldStyle(.roundedBorder)
                         .font(.system(size: 13))
+                }
+            }
+            
+            // Model selector
+            if !aiService.availableModels.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Model")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                    
+                    Picker("Model", selection: Binding(
+                        get: { aiService.currentModel?.id ?? aiService.availableModels.first?.id ?? "" },
+                        set: { newId in
+                            if let model = aiService.availableModels.first(where: { $0.id == newId }) {
+                                Task {
+                                    try? await aiService.selectModel(model)
+                                }
+                            }
+                        }
+                    )) {
+                        ForEach(aiService.availableModels) { model in
+                            Text(model.name).tag(model.id)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                }
+            }
+            
+            // Mode selector (only for OpenCode)
+            if !aiService.availableModes.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Mode")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                    
+                    Picker("Mode", selection: Binding(
+                        get: { aiService.currentMode?.id ?? aiService.availableModes.first?.id ?? "" },
+                        set: { newId in
+                            if let mode = aiService.availableModes.first(where: { $0.id == newId }) {
+                                Task {
+                                    try? await aiService.selectMode(mode)
+                                }
+                            }
+                        }
+                    )) {
+                        ForEach(aiService.availableModes) { mode in
+                            Text(mode.name).tag(mode.id)
+                        }
+                    }
+                    .pickerStyle(.menu)
                 }
             }
             

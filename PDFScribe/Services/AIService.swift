@@ -31,6 +31,10 @@ class AIService: ObservableObject {
     @Published var apiKey: String = ""
     @Published var provider: AIProvider = .openai
     @Published var opencodePath: String = "/usr/local/bin/opencode"
+    @Published var availableModels: [AIModel] = []
+    @Published var availableModes: [AIMode] = []
+    @Published var currentModel: AIModel?
+    @Published var currentMode: AIMode?
     
     private var currentStrategy: AIProviderStrategy?
     weak var appViewModel: AppViewModel?
@@ -53,7 +57,12 @@ class AIService: ObservableObject {
             throw AIError.invalidAPIKey
         }
         
-        return try await strategy.send(message: message, context: context)
+        let response = try await strategy.send(message: message, context: context)
+        
+        // Update current model/mode in case they changed during session creation
+        updateAvailableModelsAndModes()
+        
+        return response
     }
     
     private func updateStrategy() {
@@ -68,13 +77,55 @@ class AIService: ObservableObject {
             strategy.toolCallHandler = toolCallHandler
             currentStrategy = strategy
         }
+        
+        updateAvailableModelsAndModes()
+    }
+    
+    private func updateAvailableModelsAndModes() {
+        guard let strategy = currentStrategy else {
+            availableModels = []
+            availableModes = []
+            currentModel = nil
+            currentMode = nil
+            return
+        }
+        
+        availableModels = strategy.availableModels()
+        availableModes = strategy.availableModes()
+        currentModel = strategy.currentModel()
+        currentMode = strategy.currentMode()
+    }
+    
+    func selectModel(_ model: AIModel) async throws {
+        guard let strategy = currentStrategy else {
+            throw AIError.invalidAPIKey
+        }
+        
+        try await strategy.selectModel(model)
+        self.currentModel = model
+    }
+    
+    func selectMode(_ mode: AIMode) async throws {
+        guard let strategy = currentStrategy else {
+            throw AIError.invalidAPIKey
+        }
+        
+        try await strategy.selectMode(mode)
+        self.currentMode = mode
     }
     
     func saveAPIKey() {
+        let oldProvider = AIProvider(rawValue: UserDefaults.standard.string(forKey: "ai_provider") ?? "") ?? .openai
+        let oldPath = UserDefaults.standard.string(forKey: "opencode_path") ?? "/usr/local/bin/opencode"
+        
         UserDefaults.standard.set(apiKey, forKey: "ai_api_key")
         UserDefaults.standard.set(provider.rawValue, forKey: "ai_provider")
         UserDefaults.standard.set(opencodePath, forKey: "opencode_path")
-        updateStrategy()
+        
+        // Only recreate strategy if provider or path changed
+        if oldProvider != provider || oldPath != opencodePath {
+            updateStrategy()
+        }
     }
     
     private func loadAPIKey() {

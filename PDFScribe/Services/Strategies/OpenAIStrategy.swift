@@ -3,9 +3,18 @@ import Foundation
 class OpenAIStrategy: AIProviderStrategy {
     private let apiKey: String
     private let endpoint = "https://api.openai.com/v1/chat/completions"
+    private var selectedModel: AIModel
+    
+    private let models: [AIModel] = [
+        AIModel(id: "gpt-4o", name: "GPT-4o", provider: .openai),
+        AIModel(id: "gpt-4o-mini", name: "GPT-4o Mini", provider: .openai),
+        AIModel(id: "gpt-4-turbo", name: "GPT-4 Turbo", provider: .openai),
+        AIModel(id: "gpt-4", name: "GPT-4", provider: .openai)
+    ]
     
     init(apiKey: String) {
         self.apiKey = apiKey
+        self.selectedModel = models[0]
     }
     
     func send(message: String, context: AIContext) async throws -> String {
@@ -21,7 +30,7 @@ class OpenAIStrategy: AIProviderStrategy {
         messages.append(["role": "user", "content": message])
         
         let requestBody: [String: Any] = [
-            "model": "gpt-4",
+            "model": selectedModel.id,
             "messages": messages,
             "temperature": 0.7
         ]
@@ -58,5 +67,32 @@ class OpenAIStrategy: AIProviderStrategy {
         } catch {
             throw AIError.networkError(error)
         }
+    }
+    
+    func availableModels() -> [AIModel] {
+        return models
+    }
+    
+    func availableModes() -> [AIMode] {
+        return []
+    }
+    
+    func currentModel() -> AIModel? {
+        return selectedModel
+    }
+    
+    func currentMode() -> AIMode? {
+        return nil
+    }
+    
+    func selectModel(_ model: AIModel) async throws {
+        guard models.contains(where: { $0.id == model.id }) else {
+            throw AIError.serverError("Model \(model.id) not available")
+        }
+        selectedModel = model
+    }
+    
+    func selectMode(_ mode: AIMode) async throws {
+        throw AIError.serverError("Modes not supported for OpenAI")
     }
 }

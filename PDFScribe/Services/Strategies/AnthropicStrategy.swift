@@ -3,9 +3,17 @@ import Foundation
 class AnthropicStrategy: AIProviderStrategy {
     private let apiKey: String
     private let endpoint = "https://api.anthropic.com/v1/messages"
+    private var selectedModel: AIModel
+    
+    private let models: [AIModel] = [
+        AIModel(id: "claude-3-5-sonnet-20241022", name: "Claude 3.5 Sonnet", provider: .anthropic),
+        AIModel(id: "claude-3-5-haiku-20241022", name: "Claude 3.5 Haiku", provider: .anthropic),
+        AIModel(id: "claude-3-opus-20240229", name: "Claude 3 Opus", provider: .anthropic)
+    ]
     
     init(apiKey: String) {
         self.apiKey = apiKey
+        self.selectedModel = models[0]
     }
     
     func send(message: String, context: AIContext) async throws -> String {
@@ -21,7 +29,7 @@ class AnthropicStrategy: AIProviderStrategy {
         messages.append(["role": "user", "content": message])
         
         let requestBody: [String: Any] = [
-            "model": "claude-3-5-sonnet-20241022",
+            "model": selectedModel.id,
             "messages": messages,
             "max_tokens": 4096
         ]
@@ -58,5 +66,32 @@ class AnthropicStrategy: AIProviderStrategy {
         } catch {
             throw AIError.networkError(error)
         }
+    }
+    
+    func availableModels() -> [AIModel] {
+        return models
+    }
+    
+    func availableModes() -> [AIMode] {
+        return []
+    }
+    
+    func currentModel() -> AIModel? {
+        return selectedModel
+    }
+    
+    func currentMode() -> AIMode? {
+        return nil
+    }
+    
+    func selectModel(_ model: AIModel) async throws {
+        guard models.contains(where: { $0.id == model.id }) else {
+            throw AIError.serverError("Model \(model.id) not available")
+        }
+        selectedModel = model
+    }
+    
+    func selectMode(_ mode: AIMode) async throws {
+        throw AIError.serverError("Modes not supported for Anthropic")
     }
 }

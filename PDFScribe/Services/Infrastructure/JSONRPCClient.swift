@@ -143,28 +143,35 @@ class JSONRPCClient {
     }
     
     private func handleMessage(_ data: Data) {
+        guard let jsonString = String(data: data, encoding: .utf8) else {
+            print("[JSONRPC] Failed to decode message as UTF-8")
+            return
+        }
+        
+        print("[JSONRPC] Received: \(jsonString.prefix(200))...")
+        
         let decoder = JSONDecoder()
         
-        // Check if this is a notification (has "method" but no "id")
-        if let notification = try? decoder.decode(JSONRPCNotification.self, from: data),
-           !notification.method.isEmpty {
-            // Verify it's actually a notification by checking raw JSON doesn't have "id"
-            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               json["id"] == nil {
-                notificationHandler?(notification)
-                return
+        // Try to decode as response first (must have an id that matches pending request)
+        if let response = try? decoder.decode(JSONRPCResponse.self, from: data),
+           let id = response.id,
+           let continuation = pendingRequests.removeValue(forKey: id) {
+            if let error = response.error {
+                continuation.resume(throwing: NSError(domain: "JSONRPCError", code: error.code, userInfo: [NSLocalizedDescriptionKey: error.message]))
+            } else {
+                continuation.resume(returning: response)
             }
+            return
         }
         
-        // Try to decode as response
-        if let response = try? decoder.decode(JSONRPCResponse.self, from: data) {
-            if let id = response.id, let continuation = pendingRequests.removeValue(forKey: id) {
-                if let error = response.error {
-                    continuation.resume(throwing: NSError(domain: "JSONRPCError", code: error.code, userInfo: [NSLocalizedDescriptionKey: error.message]))
-                } else {
-                    continuation.resume(returning: response)
-                }
-            }
+        // Try to decode as notification (has method but no id)
+        if let notification = try? decoder.decode(JSONRPCNotification.self, from: data),
+           !notification.method.isEmpty {
+            print("[JSONRPC] Dispatching notification: \(notification.method)")
+            notificationHandler?(notification)
+            return
         }
+        
+        print("[JSONRPC] Failed to decode message as response or notification")
     }
 }

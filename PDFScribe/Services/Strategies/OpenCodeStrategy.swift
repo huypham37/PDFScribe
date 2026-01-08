@@ -13,6 +13,10 @@ class OpenCodeStrategy: AIProviderStrategy {
     private var sessionId: String?
     private var isInitialized = false
     private var accumulatedResponse = ""
+    private var availableModelsList: [AIModel] = []
+    private var availableModesList: [AIMode] = []
+    private var selectedModel: AIModel?
+    private var selectedMode: AIMode?
     weak var toolCallHandler: ToolCallHandler?
     
     init(binaryPath: String, workingDirectory: String? = nil) {
@@ -21,10 +25,16 @@ class OpenCodeStrategy: AIProviderStrategy {
     }
     
     func send(message: String, context: AIContext) async throws -> String {
+        let sendStartTime = Date()
+        print("OpenCodeStrategy.send() called - isInitialized: \(isInitialized), sessionId: \(sessionId ?? "nil")")
         if !isInitialized {
+            print("Initializing OpenCode...")
             try await initialize()
+            print("Creating session...")
             try await createSession()
         }
+        
+        print("[TIMING] Initialization/session took: \(Date().timeIntervalSince(sendStartTime))s")
         
         guard let sessionId = sessionId else {
             throw AIError.serverError("No active session")
@@ -104,6 +114,51 @@ class OpenCodeStrategy: AIProviderStrategy {
         }
         
         self.sessionId = sessionId
+        
+        // Debug: print the full response to see structure
+        if let jsonData = try? JSONSerialization.data(withJSONObject: result, options: .prettyPrinted),
+           let jsonString = String(data: jsonData, encoding: .utf8) {
+            print("OpenCode session/new response: \(jsonString)")
+        }
+        
+        // Parse available models (try both camelCase and snake_case)
+        if let modelsData = result["models"] as? [String: Any] {
+            let availableModels = (modelsData["availableModels"] as? [[String: Any]]) 
+                ?? (modelsData["available_models"] as? [[String: Any]]) 
+                ?? []
+            
+            self.availableModelsList = availableModels.compactMap { modelDict in
+                let modelId = (modelDict["modelId"] as? String) ?? (modelDict["model_id"] as? String)
+                let name = modelDict["name"] as? String
+                guard let id = modelId, let displayName = name else { return nil }
+                return AIModel(id: id, name: displayName, provider: .opencode)
+            }
+            
+            let currentModelId = (modelsData["currentModelId"] as? String) ?? (modelsData["current_model_id"] as? String)
+            if let currentId = currentModelId {
+                self.selectedModel = availableModelsList.first { $0.id == currentId }
+            }
+        }
+        
+        // Parse available modes (try both camelCase and snake_case)
+        if let modesData = result["modes"] as? [String: Any] {
+            let availableModes = (modesData["availableModes"] as? [[String: Any]]) 
+                ?? (modesData["available_modes"] as? [[String: Any]]) 
+                ?? []
+            
+            self.availableModesList = availableModes.compactMap { modeDict in
+                let modeId = modeDict["id"] as? String
+                let name = modeDict["name"] as? String
+                guard let id = modeId, let displayName = name else { return nil }
+                let description = modeDict["description"] as? String
+                return AIMode(id: id, name: displayName, description: description)
+            }
+            
+            let currentModeId = (modesData["currentModeId"] as? String) ?? (modesData["current_mode_id"] as? String)
+            if let currentId = currentModeId {
+                self.selectedMode = availableModesList.first { $0.id == currentId }
+            }
+        }
     }
     
     private func sendPrompt(sessionId: String, message: String, context: AIContext) async throws -> String {
@@ -180,10 +235,17 @@ class OpenCodeStrategy: AIProviderStrategy {
         
         accumulatedResponse = ""
         
+        let promptStartTime = Date()
+        print("[TIMING] Sending session/prompt request...")
         let (requestId, requestData) = try rpcClient.createRequest(method: "session/prompt", params: params)
         try processManager.write(requestData)
+        print("[TIMING] Request sent, waiting for response...")
         
         let response = try await rpcClient.awaitResponse(forRequestId: requestId)
+        let promptDuration = Date().timeIntervalSince(promptStartTime)
+        
+        print("[TIMING] session/prompt completed in \(promptDuration)s")
+        print("session/prompt response received - error: \(response.error?.message ?? "none"), accumulated: \(accumulatedResponse.count) chars")
         
         guard response.error == nil else {
             let errorMsg = response.error?.message ?? "Unknown error"
@@ -248,6 +310,106 @@ class OpenCodeStrategy: AIProviderStrategy {
             
         default:
             break
+        }
+    }
+    
+    func availableModels() -> [AIModel] {
+        return availableModelsList
+    }
+    
+    func availableModes() -> [AIMode] {
+        return availableModesList
+    }
+    
+    func currentModel() -> AIModel? {
+        return selectedModel
+    }
+    
+    func currentMode() -> AIMode? {
+        return selectedMode
+    }
+    
+    func selectModel(_ model: AIModel) async throws {
+        // If no session exists yet, just update local state
+        // The model will be used when session is created
+        guard let sessionId = sessionId else {
+            selectedModel = model
+            return
+        }
+        
+        guard let rpcClient = rpcClient,
+              let processManager = processManager else {
+            throw AIError.serverError("Client not initialized")
+        }
+        
+        let oldModel = selectedModel
+        selectedModel = model
+        
+        print("Sending session/set_model to OpenCode - sessionId: \(sessionId), modelId: \(model.id)")
+        
+        let params: [String: Any] = [
+            "sessionId": sessionId,
+            "modelId": model.id
+        ]
+        
+        do {
+            let startTime = Date()
+            let (requestId, requestData) = try rpcClient.createRequest(method: "session/set_model", params: params)
+            try processManager.write(requestData)
+            
+            let response = try await rpcClient.awaitResponse(forRequestId: requestId)
+            let duration = Date().timeIntervalSince(startTime)
+            print("session/set_model completed in \(duration)s")
+            
+            if let error = response.error {
+                selectedModel = oldModel
+                throw AIError.serverError("Failed to set model: \(error.message)")
+            }
+        } catch {
+            selectedModel = oldModel
+            throw error
+        }
+    }
+    
+    func selectMode(_ mode: AIMode) async throws {
+        // If no session exists yet, just update local state
+        // The mode will be used when session is created
+        guard let sessionId = sessionId else {
+            selectedMode = mode
+            return
+        }
+        
+        guard let rpcClient = rpcClient,
+              let processManager = processManager else {
+            throw AIError.serverError("Client not initialized")
+        }
+        
+        let oldMode = selectedMode
+        selectedMode = mode
+        
+        print("Sending session/set_mode to OpenCode - sessionId: \(sessionId), modeId: \(mode.id)")
+        
+        let params: [String: Any] = [
+            "sessionId": sessionId,
+            "modeId": mode.id
+        ]
+        
+        do {
+            let startTime = Date()
+            let (requestId, requestData) = try rpcClient.createRequest(method: "session/set_mode", params: params)
+            try processManager.write(requestData)
+            
+            let response = try await rpcClient.awaitResponse(forRequestId: requestId)
+            let duration = Date().timeIntervalSince(startTime)
+            print("session/set_mode completed in \(duration)s")
+            
+            if let error = response.error {
+                selectedMode = oldMode
+                throw AIError.serverError("Failed to set mode: \(error.message)")
+            }
+        } catch {
+            selectedMode = oldMode
+            throw error
         }
     }
     
