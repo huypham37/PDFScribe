@@ -1,4 +1,5 @@
 import SwiftUI
+import PDFKit
 
 struct MainSplitView: View {
     @EnvironmentObject var appViewModel: AppViewModel
@@ -7,13 +8,15 @@ struct MainSplitView: View {
     
     @State private var showingError = false
     @State private var errorMessage = ""
+    @State private var pdfViewInstance: PDFView?
 
     var body: some View {
         HSplitView {
             // PDF Area
-            VStack {
+            VStack(spacing: 0) {
                 if pdfViewModel.document != nil {
-                    PDFPanel(viewModel: pdfViewModel)
+                    PDFControlBar(viewModel: pdfViewModel, pdfView: pdfViewInstance)
+                    PDFPanel(viewModel: pdfViewModel, pdfViewInstance: $pdfViewInstance)
                 } else {
                     VStack {
                         Text("PDF Viewer")
@@ -40,9 +43,9 @@ struct MainSplitView: View {
                 .background(Color(NSColor.windowBackgroundColor))
         }
         .frame(minWidth: 1000, minHeight: 600)
-        .onReceive(pdfViewModel.$selectedText) { text in
-            if let text = text, !text.isEmpty {
-                editorViewModel.insertQuote(text: text, pageNumber: 1)
+        .onReceive(pdfViewModel.$selectedText) { selection in
+            if let selection = selection, !selection.text.isEmpty {
+                editorViewModel.insertQuote(text: selection.text, pageNumber: selection.pageNumber)
                 pdfViewModel.selectedText = nil
             }
         }

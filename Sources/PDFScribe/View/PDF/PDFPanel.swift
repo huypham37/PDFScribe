@@ -3,6 +3,7 @@ import PDFKit
 
 struct PDFPanel: NSViewRepresentable {
     @ObservedObject var viewModel: PDFViewModel
+    @Binding var pdfViewInstance: PDFView?
 
     func makeNSView(context: Context) -> PDFView {
         let pdfView = PDFView()
@@ -11,11 +12,21 @@ struct PDFPanel: NSViewRepresentable {
         pdfView.displayBox = .mediaBox
         
         context.coordinator.pdfView = pdfView
+        DispatchQueue.main.async {
+            pdfViewInstance = pdfView
+        }
         
         NotificationCenter.default.addObserver(
             context.coordinator,
             selector: #selector(Coordinator.selectionChanged(_:)),
             name: .PDFViewSelectionChanged,
+            object: pdfView
+        )
+        
+        NotificationCenter.default.addObserver(
+            context.coordinator,
+            selector: #selector(Coordinator.pageChanged(_:)),
+            name: .PDFViewPageChanged,
             object: pdfView
         )
         
@@ -34,6 +45,7 @@ struct PDFPanel: NSViewRepresentable {
     
     static func dismantleNSView(_ nsView: PDFView, coordinator: Coordinator) {
         NotificationCenter.default.removeObserver(coordinator, name: .PDFViewSelectionChanged, object: nsView)
+        NotificationCenter.default.removeObserver(coordinator, name: .PDFViewPageChanged, object: nsView)
     }
     
     class Coordinator: NSObject {
@@ -47,6 +59,7 @@ struct PDFPanel: NSViewRepresentable {
         deinit {
             if let pdfView = pdfView {
                 NotificationCenter.default.removeObserver(self, name: .PDFViewSelectionChanged, object: pdfView)
+                NotificationCenter.default.removeObserver(self, name: .PDFViewPageChanged, object: pdfView)
             }
         }
         
@@ -58,7 +71,30 @@ struct PDFPanel: NSViewRepresentable {
                 return
             }
             
-            viewModel?.selectedText = text
+            // Get the page number from the first page in the selection
+            let pages = selection.pages
+            let pageNumber: Int
+            if let firstPage = pages.first,
+               let document = pdfView.document {
+                let pageIndex = document.index(for: firstPage)
+                pageNumber = pageIndex + 1 // Convert 0-based to 1-based
+            } else {
+                pageNumber = 1 // Fallback to page 1
+            }
+            
+            viewModel?.selectedText = PDFSelection(text: text, pageNumber: pageNumber)
+        }
+        
+        @MainActor
+        @objc func pageChanged(_ notification: Notification) {
+            guard let pdfView = notification.object as? PDFView,
+                  let currentPage = pdfView.currentPage,
+                  let document = pdfView.document else {
+                return
+            }
+            
+            let pageIndex = document.index(for: currentPage)
+            viewModel?.currentPage = pageIndex + 1
         }
     }
 }
