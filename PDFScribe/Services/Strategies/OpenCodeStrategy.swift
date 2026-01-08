@@ -15,47 +15,32 @@ class OpenCodeStrategy: AIProviderStrategy {
     }
     
     func send(message: String, context: [AIMessage]) async throws -> String {
-        print("OpenCode: Starting send()")
         if !isInitialized {
-            print("OpenCode: Initializing...")
             try await initialize()
-            print("OpenCode: Creating session...")
             try await createSession()
-            print("OpenCode: Session created: \(sessionId ?? "nil")")
         }
         
         guard let sessionId = sessionId else {
             throw AIError.serverError("No active session")
         }
         
-        print("OpenCode: Sending prompt...")
         return try await sendPrompt(sessionId: sessionId, message: message, context: context)
     }
     
     private func initialize() async throws {
-        print("OpenCode: Creating ProcessManager...")
         let manager = ProcessManager(binaryPath: binaryPath, arguments: ["acp"])
         let client = JSONRPCClient()
         
         client.setNotificationHandler { [weak self] notification in
-            print("OpenCode: Received notification: \(notification.method)")
             self?.handleNotification(notification)
         }
         
         manager.onStdout = { [weak client] data in
-            if let str = String(data: data, encoding: .utf8) {
-                print("OpenCode stdout: \(str)")
-            }
             client?.handleIncomingData(data)
         }
         
-        manager.onStderr = { data in
-            if let error = String(data: data, encoding: .utf8) {
-                print("OpenCode stderr: \(error)")
-            }
-        }
+        manager.onStderr = { _ in }
         
-        print("OpenCode: Launching process...")
         try manager.launch()
         
         // Send initialize request
@@ -71,20 +56,16 @@ class OpenCodeStrategy: AIProviderStrategy {
             ]
         ]
         
-        print("OpenCode: Sending initialize request...")
         let (requestId, requestData) = try client.createRequest(method: "initialize", params: initParams)
         try manager.write(requestData)
         
-        print("OpenCode: Waiting for initialize response...")
         let response = try await client.awaitResponse(forRequestId: requestId)
         
         guard response.error == nil else {
             let errorMsg = response.error?.message ?? "Unknown error"
-            print("OpenCode: Initialize error: \(errorMsg)")
             throw AIError.serverError("Initialization failed: \(errorMsg)")
         }
         
-        print("OpenCode: Initialized successfully")
         self.processManager = manager
         self.rpcClient = client
         self.isInitialized = true
@@ -98,10 +79,9 @@ class OpenCodeStrategy: AIProviderStrategy {
         
         let params: [String: Any] = [
             "cwd": workingDirectory,
-            "mcpServers": [] // Empty array for no MCP servers
+            "mcpServers": []
         ]
         
-        print("OpenCode: Creating session with cwd: \(workingDirectory)")
         let (requestId, requestData) = try rpcClient.createRequest(method: "session/new", params: params)
         try processManager.write(requestData)
         
@@ -109,7 +89,6 @@ class OpenCodeStrategy: AIProviderStrategy {
         
         guard response.error == nil else {
             let errorMsg = response.error?.message ?? "Unknown error"
-            print("OpenCode: Session creation error: \(errorMsg)")
             throw AIError.serverError("Failed to create session: \(errorMsg)")
         }
         
@@ -118,7 +97,6 @@ class OpenCodeStrategy: AIProviderStrategy {
             throw AIError.serverError("Failed to get sessionId from response")
         }
         
-        print("OpenCode: Session created with ID: \(sessionId)")
         self.sessionId = sessionId
     }
     
@@ -128,8 +106,6 @@ class OpenCodeStrategy: AIProviderStrategy {
             throw AIError.serverError("Client not initialized")
         }
         
-        // Build prompt - just send the current message
-        // Context is maintained by OpenCode session
         let contentBlocks: [[String: Any]] = [
             ["type": "text", "text": message]
         ]
@@ -139,70 +115,35 @@ class OpenCodeStrategy: AIProviderStrategy {
             "prompt": contentBlocks
         ]
         
-        print("OpenCode: Sending prompt with params: \(params)")
-        
-        // Reset accumulated response
         accumulatedResponse = ""
         
         let (requestId, requestData) = try rpcClient.createRequest(method: "session/prompt", params: params)
         try processManager.write(requestData)
         
-        print("OpenCode: Waiting for prompt response...")
         let response = try await rpcClient.awaitResponse(forRequestId: requestId)
         
         guard response.error == nil else {
             let errorMsg = response.error?.message ?? "Unknown error"
-            print("OpenCode: Prompt error: \(errorMsg)")
             throw AIError.serverError(errorMsg)
         }
         
-        print("OpenCode: Got response, accumulated: \(accumulatedResponse)")
-        // Return accumulated response from notifications
         return accumulatedResponse.isEmpty ? "No response received" : accumulatedResponse
     }
     
     private func handleNotification(_ notification: JSONRPCNotification) {
-        print("OpenCode: Received notification method: \(notification.method)")
-        
-        guard let params = notification.params?.value as? [String: Any] else {
-            print("OpenCode: No params in notification")
+        guard let params = notification.params?.value as? [String: Any],
+              let update = params["update"] as? [String: Any],
+              let sessionUpdate = update["sessionUpdate"] as? String else {
             return
         }
         
-        print("OpenCode: Notification params keys: \(params.keys)")
-        
-        guard let update = params["update"] as? [String: Any] else {
-            print("OpenCode: No update in params")
-            return
-        }
-        
-        print("OpenCode: Update keys: \(update.keys)")
-        
-        guard let sessionUpdate = update["sessionUpdate"] as? String else {
-            print("OpenCode: No sessionUpdate in update")
-            return
-        }
-        
-        print("OpenCode: sessionUpdate type: \(sessionUpdate)")
-        
-        switch notification.method {
-        case "session/update":
-            switch sessionUpdate {
-            case "agent_message_chunk":
-                if let content = update["content"] as? [String: Any],
-                   let type = content["type"] as? String,
-                   type == "text",
-                   let text = content["text"] as? String {
-                    accumulatedResponse += text
-                    print("OpenCode: Accumulated chunk: '\(text)' (total: \(accumulatedResponse.count) chars)")
-                } else {
-                    print("OpenCode: Failed to extract text from content")
-                }
-            default:
-                break
+        if notification.method == "session/update" && sessionUpdate == "agent_message_chunk" {
+            if let content = update["content"] as? [String: Any],
+               let type = content["type"] as? String,
+               type == "text",
+               let text = content["text"] as? String {
+                accumulatedResponse += text
             }
-        default:
-            break
         }
     }
     
