@@ -185,6 +185,26 @@ struct AIPanel: View {
                     modelPickerView
                 }
                 
+                // Chat input field
+                HStack(spacing: 8) {
+                    TextField("Message...", text: $inputText, onCommit: sendMessage)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 13))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .background(Color(NSColor.controlBackgroundColor))
+                        .cornerRadius(8)
+                        .disabled(viewModel.isProcessing)
+                    
+                    Button(action: sendMessage) {
+                        Image(systemName: "arrow.up.circle.fill")
+                            .font(.system(size: 24))
+                            .foregroundColor(inputText.isEmpty ? .secondary : Color("SlateIndigo"))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(inputText.isEmpty || viewModel.isProcessing)
+                }
+                
                 // Bottom toolbar
                 HStack(spacing: 16) {
                     // Attachment button
@@ -225,6 +245,17 @@ struct AIPanel: View {
         .background(Color(NSColor.windowBackgroundColor))
         .sheet(isPresented: $showingSettings) {
             AISettingsView(aiService: viewModel.aiService)
+        }
+    }
+    
+    private func sendMessage() {
+        let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        
+        inputText = ""
+        
+        Task {
+            await viewModel.sendMessage(text)
         }
     }
     
