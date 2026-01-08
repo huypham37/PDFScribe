@@ -47,11 +47,18 @@ struct EditorPanel: NSViewRepresentable {
         textView.isRichText = false
         textView.allowsUndo = true
         
-        // Appearance
-        textView.font = NSFont.monospacedSystemFont(ofSize: 14, weight: .regular)
-        textView.textContainerInset = NSSize(width: 10, height: 10)
-        textView.backgroundColor = NSColor.textBackgroundColor
-        textView.insertionPointColor = NSColor.textColor
+        // Appearance - "Digital Study" design system
+        // Use system serif font (New York) for editorial feel
+        let serifDescriptor = NSFontDescriptor.preferredFontDescriptor(forTextStyle: .body)
+            .withDesign(.serif)!
+        let serifFont = NSFont(descriptor: serifDescriptor, size: 16)!
+        textView.font = serifFont
+        textView.textContainerInset = NSSize(width: 32, height: 24) // Generous padding
+        
+        // Paper-like background - PaperWhite color (adapts to light/dark mode)
+        textView.backgroundColor = NSColor(named: "PaperWhite") ?? NSColor.textBackgroundColor
+        textView.insertionPointColor = NSColor.labelColor
+        textView.textColor = NSColor.labelColor
         
         // Set delegate
         textView.delegate = context.coordinator
