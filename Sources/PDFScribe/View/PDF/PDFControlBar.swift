@@ -37,6 +37,18 @@ struct PDFControlBar: View {
             Button(action: zoomIn) {
                 Image(systemName: "plus.magnifyingglass")
             }
+            
+            Spacer()
+            
+            // Add Quote button - only enabled when text is selected
+            Button(action: { viewModel.addQuote() }) {
+                HStack(spacing: 4) {
+                    Image(systemName: "quote.opening")
+                    Text("Add Quote")
+                }
+            }
+            .disabled(!viewModel.hasSelection)
+            .keyboardShortcut("q", modifiers: .command)
         }
         .padding(8)
         .background(Color(NSColor.controlBackgroundColor))
