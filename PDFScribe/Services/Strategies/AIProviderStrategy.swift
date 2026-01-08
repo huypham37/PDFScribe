@@ -8,6 +8,7 @@ struct AIContext {
     let pdfURL: URL?
     let pdfSelection: String?
     let pdfPage: Int?
+    let referencedFiles: [URL]
 }
 
 protocol AIProviderStrategy {

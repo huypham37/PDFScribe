@@ -131,6 +131,31 @@ class OpenCodeStrategy: AIProviderStrategy {
             ])
         }
         
+        // Add referenced files as resources
+        for fileURL in context.referencedFiles {
+            if let content = try? String(contentsOf: fileURL, encoding: .utf8) {
+                let mimeType: String
+                let ext = fileURL.pathExtension.lowercased()
+                switch ext {
+                case "md":
+                    mimeType = "text/markdown"
+                case "pdf":
+                    mimeType = "application/pdf"
+                default:
+                    mimeType = "text/plain"
+                }
+                
+                contentBlocks.append([
+                    "type": "resource",
+                    "resource": [
+                        "uri": fileURL.absoluteString,
+                        "mimeType": mimeType,
+                        "text": content
+                    ]
+                ])
+            }
+        }
+        
         // Add editor selection if available
         if let selection = context.selection, !selection.isEmpty {
             contentBlocks.append([

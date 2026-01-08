@@ -14,6 +14,8 @@ class AppViewModel: ObservableObject {
     @Published var selectedFile: FileItem?
     @Published var sidebarMode: SidebarMode = .files
     
+    private var allFiles: [FileItem] = []
+    
     // Load a project directory
     func loadProject(url: URL) {
         // Ensure we have access to the directory (security scoped bookmarks might be needed for real app persistence, 
@@ -27,6 +29,30 @@ class AppViewModel: ObservableObject {
     func refreshProject() {
         guard let root = projectRootURL else { return }
         fileStructure = scanDirectory(at: root)
+        allFiles = flattenFileStructure(fileStructure)
+    }
+    
+    // Get all files as a flat list
+    func getAllFiles() -> [FileItem] {
+        return allFiles
+    }
+    
+    private func flattenFileStructure(_ items: [FileItem]) -> [FileItem] {
+        var result: [FileItem] = []
+        
+        for item in items {
+            result.append(item)
+            if let children = item.children {
+                result.append(contentsOf: flattenFileStructure(children))
+            }
+        }
+        
+        // Sort: folders first, then files alphabetically
+        return result.sorted { lhs, rhs in
+            if lhs.isDirectory && !rhs.isDirectory { return true }
+            if !lhs.isDirectory && rhs.isDirectory { return false }
+            return lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
+        }
     }
     
     // Recursive scan

@@ -7,6 +7,7 @@ class AIViewModel: ObservableObject, ToolCallHandler {
     @Published var toolCalls: [String: ToolCall] = [:] // toolCallId -> ToolCall
     @Published var isProcessing: Bool = false
     @Published var errorMessage: String?
+    @Published var mentionedFiles: [URL] = []
     
     let aiService: AIService
     weak var editorViewModel: EditorViewModel?
@@ -63,12 +64,16 @@ class AIViewModel: ObservableObject, ToolCallHandler {
                 selection: nil, // TODO: Add editor text selection if needed
                 pdfURL: nil, // TODO: Add current PDF URL from pdfViewModel if needed
                 pdfSelection: pdfSelection?.text,
-                pdfPage: pdfSelection?.pageNumber
+                pdfPage: pdfSelection?.pageNumber,
+                referencedFiles: mentionedFiles
             )
             let response = try await aiService.sendMessage(text, context: context)
             
             let assistantMessage = ChatMessage(role: .assistant, content: response)
             messages.append(assistantMessage)
+            
+            // Clear mentioned files after sending
+            mentionedFiles.removeAll()
         } catch AIError.invalidAPIKey {
             errorMessage = "Please configure your API key in Settings"
         } catch AIError.serverError(let message) {
@@ -129,9 +134,13 @@ struct ToolCall: Identifiable {
 
 struct AIPanel: View {
     @ObservedObject var viewModel: AIViewModel
+    @EnvironmentObject var appViewModel: AppViewModel
     @State private var inputText: String = ""
     @State private var showingSettings = false
     @State private var showingModelPicker = false
+    @State private var showingMentionPicker = false
+    @State private var mentionFilter: String = ""
+    @State private var selectedMentionIndex: Int = 0
     
     var body: some View {
         VStack(spacing: 0) {
@@ -261,16 +270,60 @@ struct AIPanel: View {
                     modelPickerView
                 }
                 
-                // Chat input field
+                // Chat input field with mention support
                 HStack(spacing: 8) {
-                    TextField("Message...", text: $inputText, onCommit: sendMessage)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 13))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 10)
-                        .background(Color(NSColor.controlBackgroundColor))
-                        .cornerRadius(8)
-                        .disabled(viewModel.isProcessing)
+                    ZStack(alignment: .bottomLeading) {
+                        TextField("Message...", text: $inputText, onEditingChanged: { _ in }, onCommit: {
+                            if showingMentionPicker && !filteredFiles.isEmpty {
+                                selectFile(filteredFiles[selectedMentionIndex])
+                            } else {
+                                sendMessage()
+                            }
+                        })
+                            .textFieldStyle(.plain)
+                            .font(.system(size: 13))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 10)
+                            .background(Color(NSColor.controlBackgroundColor))
+                            .cornerRadius(8)
+                            .disabled(viewModel.isProcessing)
+                            .onChange(of: inputText) { newValue in
+                                handleTextChange(newValue)
+                            }
+                            .onKeyPress(.upArrow) {
+                                if showingMentionPicker {
+                                    selectedMentionIndex = max(0, selectedMentionIndex - 1)
+                                    return .handled
+                                }
+                                return .ignored
+                            }
+                            .onKeyPress(.downArrow) {
+                                if showingMentionPicker {
+                                    selectedMentionIndex = min(filteredFiles.count - 1, selectedMentionIndex + 1)
+                                    return .handled
+                                }
+                                return .ignored
+                            }
+                            .onKeyPress(.tab) {
+                                if showingMentionPicker && !filteredFiles.isEmpty {
+                                    selectFile(filteredFiles[selectedMentionIndex])
+                                    return .handled
+                                }
+                                return .ignored
+                            }
+                            .onKeyPress(.escape) {
+                                if showingMentionPicker {
+                                    showingMentionPicker = false
+                                    return .handled
+                                }
+                                return .ignored
+                            }
+                        
+                        if showingMentionPicker {
+                            mentionPickerView
+                                .offset(y: -50)
+                        }
+                    }
                     
                     Button(action: sendMessage) {
                         Image(systemName: "arrow.up.circle.fill")
@@ -330,11 +383,94 @@ struct AIPanel: View {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         
+        parseMentions(from: text)
         inputText = ""
         
         Task {
             await viewModel.sendMessage(text)
         }
+    }
+    
+    private func handleTextChange(_ newValue: String) {
+        if let lastAtIndex = newValue.lastIndex(of: "@") {
+            let afterAt = String(newValue[newValue.index(after: lastAtIndex)...])
+            if !afterAt.contains(" ") {
+                mentionFilter = afterAt
+                showingMentionPicker = true
+                selectedMentionIndex = 0
+                return
+            }
+        }
+        showingMentionPicker = false
+    }
+    
+    private func parseMentions(from text: String) {
+        let pattern = "@\\[([^\\]]+)\\]"
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return }
+        
+        let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
+        var mentionedURLs: [URL] = []
+        
+        for match in matches {
+            if let range = Range(match.range(at: 1), in: text) {
+                let filename = String(text[range])
+                if let fileItem = appViewModel.getAllFiles().first(where: { $0.name == filename }) {
+                    mentionedURLs.append(fileItem.url)
+                }
+            }
+        }
+        
+        viewModel.mentionedFiles = mentionedURLs
+    }
+    
+    private func selectFile(_ fileItem: FileItem) {
+        if let atIndex = inputText.lastIndex(of: "@") {
+            let beforeAt = String(inputText[..<atIndex])
+            inputText = beforeAt + "@[\(fileItem.name)] "
+        }
+        showingMentionPicker = false
+    }
+    
+    private var filteredFiles: [FileItem] {
+        let allFiles = appViewModel.getAllFiles()
+        if mentionFilter.isEmpty {
+            return Array(allFiles.prefix(10))
+        }
+        return allFiles.filter { $0.name.localizedCaseInsensitiveContains(mentionFilter) }.prefix(10).map { $0 }
+    }
+    
+    private var mentionPickerView: some View {
+        let itemHeight: CGFloat = 28
+        let calculatedHeight = min(CGFloat(filteredFiles.count) * itemHeight, 280)
+        
+        return VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(filteredFiles.enumerated()), id: \.element.id) { index, file in
+                Button(action: { selectFile(file) }) {
+                    HStack(spacing: 8) {
+                        Image(systemName: file.iconName)
+                            .font(.system(size: 12))
+                            .foregroundColor(.secondary)
+                        Text(file.name)
+                            .font(.system(size: 12))
+                            .foregroundColor(.primary)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .background(index == selectedMentionIndex ? Color.accentColor.opacity(0.2) : Color(NSColor.controlBackgroundColor))
+                
+                if file.id != filteredFiles.last?.id {
+                    Divider()
+                }
+            }
+        }
+        .frame(width: 250, height: calculatedHeight)
+        .background(Color(NSColor.windowBackgroundColor))
+        .cornerRadius(8)
+        .shadow(color: Color.black.opacity(0.2), radius: 8, x: 0, y: 4)
     }
     
     private var modelDisplayName: String {
