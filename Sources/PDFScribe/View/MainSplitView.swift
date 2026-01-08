@@ -5,6 +5,8 @@ struct MainSplitView: View {
     @EnvironmentObject var appViewModel: AppViewModel
     @EnvironmentObject var pdfViewModel: PDFViewModel
     @EnvironmentObject var editorViewModel: EditorViewModel
+    @EnvironmentObject var aiViewModel: AIViewModel
+    @EnvironmentObject var fileService: FileService
     
     @State private var showingError = false
     @State private var errorMessage = ""
@@ -37,7 +39,7 @@ struct MainSplitView: View {
                 .background(Color(NSColor.textBackgroundColor))
             
             // AI Sidebar Area
-            AIPanel()
+            AIPanel(viewModel: aiViewModel)
                 .frame(width: 300)
                 .frame(maxHeight: .infinity)
                 .background(Color(NSColor.windowBackgroundColor))
@@ -48,6 +50,9 @@ struct MainSplitView: View {
                 editorViewModel.insertQuote(text: selection.text, pageNumber: selection.pageNumber)
                 pdfViewModel.selectedText = nil
             }
+        }
+        .onAppear {
+            setupAutoSave()
         }
         .alert("Error Opening PDF", isPresented: $showingError) {
             Button("OK", role: .cancel) { }
@@ -93,8 +98,20 @@ struct MainSplitView: View {
         do {
             try pdfViewModel.loadPDF(url: url)
             appViewModel.documentTitle = url.deletingPathExtension().lastPathComponent
+            
+            // Associate and load note file
+            let noteURL = fileService.associateNoteWithPDF(pdfURL: url)
+            if let noteContent = fileService.loadNote(from: noteURL) {
+                editorViewModel.loadContent(noteContent)
+            }
         } catch {
             showError("Could not load PDF: \(error.localizedDescription)")
+        }
+    }
+    
+    private func setupAutoSave() {
+        editorViewModel.contentDidChange = { [weak fileService] content in
+            fileService?.scheduleAutoSave(content: content)
         }
     }
     
