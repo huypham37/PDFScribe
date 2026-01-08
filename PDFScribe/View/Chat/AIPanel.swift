@@ -319,14 +319,26 @@ struct AISettingsView: View {
             }
             .pickerStyle(.segmented)
             
-            VStack(alignment: .leading, spacing: 6) {
-                Text("API Key")
-                    .font(.system(size: 12))
-                    .foregroundColor(.secondary)
-                
-                SecureField("Enter your API key", text: $aiService.apiKey)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 13))
+            if aiService.provider != .opencode {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("API Key")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                    
+                    SecureField("Enter your API key", text: $aiService.apiKey)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 13))
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("OpenCode Binary Path")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                    
+                    TextField("/usr/local/bin/opencode", text: $aiService.opencodePath)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 13))
+                }
             }
             
             HStack {
