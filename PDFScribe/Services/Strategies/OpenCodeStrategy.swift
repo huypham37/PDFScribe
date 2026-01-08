@@ -173,13 +173,16 @@ class OpenCodeStrategy: AIProviderStrategy {
             }
         }
         
-        // Set default model to google/gemini-pro if available
-        if let preferredModel = availableModelsList.first(where: { $0.id == "google/gemini-pro" }) {
-            print("[DEFAULT] Setting default model to google/gemini-pro")
+        print("[DEFAULT] Available models: \(availableModelsList.map { $0.id }.joined(separator: ", "))")
+        print("[DEFAULT] Available modes: \(availableModesList.map { $0.id }.joined(separator: ", "))")
+        
+        // Set default model to github-copilot/gemini-3-pro-preview if available
+        if let preferredModel = availableModelsList.first(where: { $0.id == "github-copilot/gemini-3-pro-preview" }) {
+            print("[DEFAULT] Setting default model to github-copilot/gemini-3-pro-preview")
             try await selectModel(preferredModel)
             print("[DEFAULT] Model set successfully - current: \(selectedModel?.id ?? "none")")
         } else {
-            print("[DEFAULT] google/gemini-pro not available, available models: \(availableModelsList.map { $0.id })")
+            print("[DEFAULT] github-copilot/gemini-3-pro-preview not available in models list")
         }
         
         // Set default mode to research-leader if available
@@ -188,7 +191,7 @@ class OpenCodeStrategy: AIProviderStrategy {
             try await selectMode(preferredMode)
             print("[DEFAULT] Mode set successfully - current: \(selectedMode?.id ?? "none")")
         } else {
-            print("[DEFAULT] research-leader not available, available modes: \(availableModesList.map { $0.id })")
+            print("[DEFAULT] research-leader not available in modes list")
         }
     }
     

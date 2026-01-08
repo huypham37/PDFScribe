@@ -35,6 +35,7 @@ class AIService: ObservableObject {
     @Published var availableModes: [AIMode] = []
     @Published var currentModel: AIModel?
     @Published var currentMode: AIMode?
+    @Published var isConnecting: Bool = false
     
     private var currentStrategy: AIProviderStrategy?
     weak var appViewModel: AppViewModel?
@@ -79,12 +80,14 @@ class AIService: ObservableObject {
             
             // Proactively connect to OpenCode when switching to this provider
             Task {
+                isConnecting = true
                 do {
                     try await strategy.connect()
                     updateAvailableModelsAndModes()
                 } catch {
                     print("Failed to proactively connect to OpenCode: \(error)")
                 }
+                isConnecting = false
             }
         }
         

@@ -540,6 +540,20 @@ struct AISettingsView: View {
                 }
             }
             
+            // Connection status for OpenCode
+            if aiService.provider == .opencode {
+                if aiService.isConnecting {
+                    HStack {
+                        ProgressView()
+                            .scaleEffect(0.7)
+                        Text("Connecting to OpenCode...")
+                            .font(.system(size: 12))
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.vertical, 8)
+                }
+            }
+            
             // Model selector
             if !aiService.availableModels.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
@@ -562,6 +576,7 @@ struct AISettingsView: View {
                         }
                     }
                     .pickerStyle(.menu)
+                    .disabled(aiService.isConnecting)
                 }
             }
             
@@ -587,6 +602,7 @@ struct AISettingsView: View {
                         }
                     }
                     .pickerStyle(.menu)
+                    .disabled(aiService.isConnecting)
                 }
             }
             
