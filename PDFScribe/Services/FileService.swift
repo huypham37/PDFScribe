@@ -11,12 +11,6 @@ class FileService: ObservableObject {
     func associateNoteWithPDF(pdfURL: URL) -> URL {
         let noteURL = pdfURL.deletingPathExtension().appendingPathExtension("md")
         currentNoteURL = noteURL
-        
-        // Create empty file if it doesn't exist
-        if !FileManager.default.fileExists(atPath: noteURL.path) {
-            try? "".write(to: noteURL, atomically: true, encoding: .utf8)
-        }
-        
         return noteURL
     }
     

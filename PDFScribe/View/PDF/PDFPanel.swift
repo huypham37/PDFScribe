@@ -68,6 +68,7 @@ struct PDFPanel: NSViewRepresentable {
             guard let pdfView = notification.object as? PDFView,
                   let selection = pdfView.currentSelection,
                   let text = selection.string else {
+                viewModel?.currentSelection = nil
                 return
             }
             
@@ -82,7 +83,8 @@ struct PDFPanel: NSViewRepresentable {
                 pageNumber = 1 // Fallback to page 1
             }
             
-            viewModel?.selectedText = PDFSelection(text: text, pageNumber: pageNumber)
+            // Just update the current selection - don't trigger quote insertion
+            viewModel?.currentSelection = PDFSelection(text: text, pageNumber: pageNumber)
         }
         
         @MainActor

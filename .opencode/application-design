@@ -1,0 +1,61 @@
+# PDFScribe Design System: "The Digital Study"
+
+## Core Philosophy
+- **Vibe:** Journalistic, Academic, "Quiet Smart", Poetic.
+- **Goal:** A digital sanctuary for reading and thinking. Moving away from "utility" to "atmosphere."
+- **System Support:** Native macOS Light/Dark mode integration.
+
+## Visual Language
+
+### 1. Typography ("The Voice vs. The Tool")
+*   **Content (The Voice):** Apple System Serif ("New York").
+    *   Used for: User notes, PDF content overlays, Article headers.
+    *   Why: Editorial, legible, classic.
+*   **Interface (The Tool):** Apple System Sans ("San Francisco").
+    *   Used for: Buttons, file lists, settings, metadata.
+    *   Why: Invisible, functional, modern.
+
+### 2. Color Palette ("Intellectual Slate")
+*   **Primary Accent:** `SlateIndigo`
+    *   Light Mode: #4A5568 (Cool gray with subtle blue undertone)
+    *   Dark Mode: #6B7BA8 (Lighter, desaturated indigo)
+    *   Use: Active states, key buttons, selection highlights, quoted text.
+*   **Secondary:** `WarmGray`
+    *   Light Mode: #E2E5E9 (Soft, neutral gray)
+    *   Dark Mode: #3A3F4B (Deep warm gray)
+    *   Use: Dividers, borders, subtle icons, secondary UI elements.
+*   **Backgrounds:**
+    *   **PaperWhite** (Light Mode): #FDFCFA (Warm, slightly cream off-white, like quality paper).
+    *   **StudyDark** (Dark Mode): System default with subtle charcoal undertones.
+
+### 3. Materials & Atmosphere
+*   **Translucency:** Use `UltraThinMaterial` for sidebars (File Browser, AI Chat) to ground the app in the user's desktop environment.
+*   **Spacing:** Generous padding. "Quiet" = Breathing room.
+*   **Borders:** Soft/Faint. Avoid heavy lines; use whitespace to separate areas.
+
+## Implementation Details
+
+### Typography Scale
+- **Title (Notes Header):** New York, 24pt, Semibold
+- **Body (Editor Content):** New York, 16pt, Regular, 1.6 line height
+- **UI Elements:** San Francisco, 13pt (system default)
+- **Metadata:** San Francisco, 11pt, Secondary color
+
+### Spacing System
+- **Extra Small:** 4pt
+- **Small:** 8pt
+- **Medium:** 16pt
+- **Large:** 24pt
+- **Extra Large:** 32pt
+
+### Component Styling
+- **Editor Panel:** Serif font, PaperWhite background (light mode), generous padding
+- **PDF Panel:** Native PDFKit styling with SlateIndigo selection highlights
+- **AI Chat:** Translucent material background, sans-serif UI text
+- **File Browser:** Translucent material, compact sans-serif labels
+
+## Design Principles
+1. **Content First:** The tool should be invisible; the user's thoughts and the PDF content should shine.
+2. **Tactile Digital:** Use materials and subtle shadows to create depth, mimicking physical study materials.
+3. **Respectful Contrast:** Sufficient contrast for accessibility, but avoid harsh blacks and whites.
+4. **Timeless:** Avoid trendy design patterns. This should feel as good in 5 years as it does today.
