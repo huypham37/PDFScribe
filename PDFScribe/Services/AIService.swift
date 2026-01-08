@@ -34,10 +34,18 @@ class AIService: ObservableObject {
     
     private var currentStrategy: AIProviderStrategy?
     weak var appViewModel: AppViewModel?
+    weak var toolCallHandler: ToolCallHandler?
     
     init() {
         loadAPIKey()
         updateStrategy()
+    }
+    
+    func setToolCallHandler(_ handler: ToolCallHandler) {
+        self.toolCallHandler = handler
+        if let opencodeStrategy = currentStrategy as? OpenCodeStrategy {
+            opencodeStrategy.toolCallHandler = handler
+        }
     }
     
     func sendMessage(_ message: String, context: [AIMessage]) async throws -> String {
@@ -56,7 +64,9 @@ class AIService: ObservableObject {
             currentStrategy = AnthropicStrategy(apiKey: apiKey)
         case .opencode:
             let workingDir = appViewModel?.projectRootURL?.path
-            currentStrategy = OpenCodeStrategy(binaryPath: opencodePath, workingDirectory: workingDir)
+            let strategy = OpenCodeStrategy(binaryPath: opencodePath, workingDirectory: workingDir)
+            strategy.toolCallHandler = toolCallHandler
+            currentStrategy = strategy
         }
     }
     

@@ -2,8 +2,9 @@ import Combine
 import SwiftUI
 
 @MainActor
-class AIViewModel: ObservableObject {
+class AIViewModel: ObservableObject, ToolCallHandler {
     @Published var messages: [ChatMessage] = []
+    @Published var toolCalls: [String: ToolCall] = [:] // toolCallId -> ToolCall
     @Published var isProcessing: Bool = false
     @Published var errorMessage: String?
     
@@ -11,6 +12,28 @@ class AIViewModel: ObservableObject {
     
     init(aiService: AIService) {
         self.aiService = aiService
+        aiService.setToolCallHandler(self)
+    }
+    
+    // Combine messages and tool calls, sorted by timestamp
+    var chronologicalItems: [Any] {
+        let allItems = messages as [Any] + toolCalls.values.map { $0 as Any }
+        return allItems.sorted { item1, item2 in
+            let time1 = (item1 as? ChatMessage)?.timestamp ?? (item1 as? ToolCall)?.timestamp ?? Date.distantPast
+            let time2 = (item2 as? ChatMessage)?.timestamp ?? (item2 as? ToolCall)?.timestamp ?? Date.distantPast
+            return time1 < time2
+        }
+    }
+    
+    func addToolCall(id: String, title: String) {
+        toolCalls[id] = ToolCall(id: id, title: title, status: .inProgress)
+    }
+    
+    func updateToolCall(id: String, status: ToolCall.Status) {
+        if var toolCall = toolCalls[id] {
+            toolCall.status = status
+            toolCalls[id] = toolCall
+        }
     }
     
     func sendMessage(_ text: String) async {
@@ -49,10 +72,40 @@ struct ChatMessage: Identifiable {
     let id = UUID()
     let role: Role
     let content: String
+    let timestamp: Date
     
     enum Role: String {
         case user
         case assistant
+        case toolCall
+    }
+    
+    init(role: Role, content: String) {
+        self.role = role
+        self.content = content
+        self.timestamp = Date()
+    }
+}
+
+struct ToolCall: Identifiable {
+    let id: String // toolCallId from OpenCode
+    let title: String
+    var status: Status
+    let timestamp: Date
+    
+    enum Status {
+        case pending
+        case inProgress
+        case completed
+        case failed
+        case cancelled
+    }
+    
+    init(id: String, title: String, status: Status) {
+        self.id = id
+        self.title = title
+        self.status = status
+        self.timestamp = Date()
     }
 }
 
@@ -134,10 +187,15 @@ struct AIPanel: View {
                             .cornerRadius(8)
                         }
                         
-                        // Messages
-                        ForEach(viewModel.messages) { message in
-                            MessageView(message: message)
-                                .id(message.id)
+                        // Messages and tool calls in chronological order
+                        ForEach(Array(viewModel.chronologicalItems.enumerated()), id: \.offset) { _, item in
+                            if let message = item as? ChatMessage {
+                                MessageView(message: message)
+                                    .id(message.id)
+                            } else if let toolCall = item as? ToolCall {
+                                ToolCallView(toolCall: toolCall)
+                                    .id(toolCall.id)
+                            }
                         }
                         
                         // Processing indicator
@@ -332,6 +390,32 @@ struct MessageView: View {
                 .lineSpacing(3)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+// MARK: - Tool Call View
+struct ToolCallView: View {
+    let toolCall: ToolCall
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Run Command")
+                .font(.system(size: 11))
+                .foregroundColor(.secondary)
+            
+            Text(toolCall.title)
+                .font(.system(size: 13))
+                .foregroundColor(toolCall.status == .inProgress ? Color.green : Color.gray)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(Color(NSColor.controlBackgroundColor))
+        .cornerRadius(6)
+        .overlay(
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(Color(NSColor.separatorColor), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
     }
 }
 

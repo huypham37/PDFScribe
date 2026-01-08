@@ -1,5 +1,10 @@
 import Foundation
 
+protocol ToolCallHandler: AnyObject {
+    func addToolCall(id: String, title: String)
+    func updateToolCall(id: String, status: ToolCall.Status)
+}
+
 class OpenCodeStrategy: AIProviderStrategy {
     private let binaryPath: String
     private let workingDirectory: String
@@ -8,6 +13,7 @@ class OpenCodeStrategy: AIProviderStrategy {
     private var sessionId: String?
     private var isInitialized = false
     private var accumulatedResponse = ""
+    weak var toolCallHandler: ToolCallHandler?
     
     init(binaryPath: String, workingDirectory: String? = nil) {
         self.binaryPath = binaryPath
@@ -137,13 +143,54 @@ class OpenCodeStrategy: AIProviderStrategy {
             return
         }
         
-        if notification.method == "session/update" && sessionUpdate == "agent_message_chunk" {
+        guard notification.method == "session/update" else { return }
+        
+        switch sessionUpdate {
+        case "agent_message_chunk":
             if let content = update["content"] as? [String: Any],
                let type = content["type"] as? String,
                type == "text",
                let text = content["text"] as? String {
                 accumulatedResponse += text
             }
+            
+        case "tool_call":
+            if let toolCallId = update["toolCallId"] as? String,
+               let title = update["title"] as? String,
+               let kind = update["kind"] as? String {
+                // Combine title and kind for better display
+                let displayTitle = "\(title): \(kind)"
+                Task { @MainActor in
+                    toolCallHandler?.addToolCall(id: toolCallId, title: displayTitle)
+                }
+            }
+            
+        case "tool_call_update":
+            // Debug: print the entire update to see what fields are available
+            if let jsonData = try? JSONSerialization.data(withJSONObject: update),
+               let jsonString = String(data: jsonData, encoding: .utf8) {
+                print("OpenCode tool_call_update: \(jsonString)")
+            }
+            
+            if let toolCallId = update["toolCallId"] as? String,
+               let statusString = update["status"] as? String {
+                let status: ToolCall.Status = {
+                    switch statusString {
+                    case "pending": return .pending
+                    case "in_progress": return .inProgress
+                    case "completed": return .completed
+                    case "failed": return .failed
+                    case "cancelled": return .cancelled
+                    default: return .inProgress
+                    }
+                }()
+                Task { @MainActor in
+                    toolCallHandler?.updateToolCall(id: toolCallId, status: status)
+                }
+            }
+            
+        default:
+            break
         }
     }
     
