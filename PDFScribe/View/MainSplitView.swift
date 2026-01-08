@@ -34,9 +34,14 @@ struct MainSplitView: View {
             ProjectSidebarView()
                 .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 300)
         } detail: {
-            // Content - PDF Viewer + Editor (AI moved to sidebar)
+            // Content - Editor + PDF Viewer (swapped positions)
             HStack(spacing: 0) {
-                // PDF Area
+                // Editor Area - PaperWhite background (now on left/center)
+                EditorPanel(viewModel: editorViewModel)
+                    .frame(minWidth: 300, maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color("PaperWhite"))
+
+                // PDF Area (now on right)
                 VStack(spacing: 0) {
                     if pdfViewModel.document != nil {
                         PDFControlBar(viewModel: pdfViewModel, pdfView: pdfViewInstance)
@@ -46,11 +51,6 @@ struct MainSplitView: View {
                     }
                 }
                 .frame(minWidth: 350, maxWidth: .infinity, maxHeight: .infinity)
-
-                // Editor Area - PaperWhite background
-                EditorPanel(viewModel: editorViewModel)
-                    .frame(minWidth: 300, maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color("PaperWhite"))
             }
         }
         .navigationSplitViewStyle(.prominentDetail)
