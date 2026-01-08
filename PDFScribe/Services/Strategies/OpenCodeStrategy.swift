@@ -24,6 +24,19 @@ class OpenCodeStrategy: AIProviderStrategy {
         self.workingDirectory = workingDirectory ?? FileManager.default.homeDirectoryForCurrentUser.path
     }
     
+    func connect() async throws {
+        guard !isInitialized else {
+            print("OpenCode already connected")
+            return
+        }
+        
+        print("Proactively connecting to OpenCode...")
+        try await initialize()
+        print("Creating session with default model/mode...")
+        try await createSession()
+        print("OpenCode connection established - sessionId: \(sessionId ?? "nil")")
+    }
+    
     func send(message: String, context: AIContext) async throws -> String {
         let sendStartTime = Date()
         print("OpenCodeStrategy.send() called - isInitialized: \(isInitialized), sessionId: \(sessionId ?? "nil")")
@@ -158,6 +171,18 @@ class OpenCodeStrategy: AIProviderStrategy {
             if let currentId = currentModeId {
                 self.selectedMode = availableModesList.first { $0.id == currentId }
             }
+        }
+        
+        // Set default model to google/gemini-pro if available
+        if let preferredModel = availableModelsList.first(where: { $0.id == "google/gemini-pro" }) {
+            print("Setting default model to google/gemini-pro")
+            try await selectModel(preferredModel)
+        }
+        
+        // Set default mode to research-leader if available
+        if let preferredMode = availableModesList.first(where: { $0.id == "research-leader" }) {
+            print("Setting default mode to research-leader")
+            try await selectMode(preferredMode)
         }
     }
     

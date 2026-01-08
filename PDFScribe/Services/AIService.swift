@@ -76,6 +76,16 @@ class AIService: ObservableObject {
             let strategy = OpenCodeStrategy(binaryPath: opencodePath, workingDirectory: workingDir)
             strategy.toolCallHandler = toolCallHandler
             currentStrategy = strategy
+            
+            // Proactively connect to OpenCode when switching to this provider
+            Task {
+                do {
+                    try await strategy.connect()
+                    updateAvailableModelsAndModes()
+                } catch {
+                    print("Failed to proactively connect to OpenCode: \(error)")
+                }
+            }
         }
         
         updateAvailableModelsAndModes()
