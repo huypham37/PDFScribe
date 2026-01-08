@@ -4,7 +4,9 @@ class OpenCodeStrategy: AIProviderStrategy {
     private let binaryPath: String
     private var processManager: ProcessManager?
     private var rpcClient: JSONRPCClient?
+    private var sessionId: String?
     private var isInitialized = false
+    private var accumulatedResponse = ""
     
     init(binaryPath: String) {
         self.binaryPath = binaryPath
@@ -13,47 +15,23 @@ class OpenCodeStrategy: AIProviderStrategy {
     func send(message: String, context: [AIMessage]) async throws -> String {
         if !isInitialized {
             try await initialize()
+            try await createSession()
         }
         
-        guard let processManager = processManager,
-              let rpcClient = rpcClient,
-              processManager.isRunning else {
-            throw AIError.serverError("OpenCode process not running")
+        guard let sessionId = sessionId else {
+            throw AIError.serverError("No active session")
         }
         
-        // Convert AIMessage context to ACP format
-        let messages = context.map { ["role": $0.role, "content": $0.content] }
-        
-        let params: [String: Any] = [
-            "messages": messages + [["role": "user", "content": message]]
-        ]
-        
-        let requestData = try rpcClient.getMessageToSend(method: "agent/chat", params: params)
-        try processManager.write(requestData)
-        
-        // Wait for response (simplified - real implementation needs proper async handling)
-        return try await withCheckedThrowingContinuation { continuation in
-            var responseText = ""
-            
-            processManager.onStdout = { data in
-                rpcClient.handleIncomingData(data)
-                
-                // Parse the response (simplified)
-                if let jsonString = String(data: data, encoding: .utf8),
-                   let jsonData = jsonString.data(using: .utf8),
-                   let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
-                   let result = json["result"] as? [String: Any],
-                   let content = result["content"] as? String {
-                    responseText = content
-                    continuation.resume(returning: content)
-                }
-            }
-        }
+        return try await sendPrompt(sessionId: sessionId, message: message, context: context)
     }
     
     private func initialize() async throws {
         let manager = ProcessManager(binaryPath: binaryPath, arguments: ["acp"])
         let client = JSONRPCClient()
+        
+        client.setNotificationHandler { [weak self] notification in
+            self?.handleNotification(notification)
+        }
         
         manager.onStdout = { [weak client] data in
             client?.handleIncomingData(data)
@@ -67,10 +45,11 @@ class OpenCodeStrategy: AIProviderStrategy {
         
         try manager.launch()
         
-        // Send initialization handshake
+        // Send initialize request
         let initParams: [String: Any] = [
             "capabilities": [
-                "chat": true
+                "prompts": [:],
+                "sessions": [:]
             ],
             "clientInfo": [
                 "name": "PDFScribe",
@@ -78,12 +57,113 @@ class OpenCodeStrategy: AIProviderStrategy {
             ]
         ]
         
-        let initData = try client.getMessageToSend(method: "initialize", params: initParams)
-        try manager.write(initData)
+        let (requestId, requestData) = try client.createRequest(method: "initialize", params: initParams)
+        try manager.write(requestData)
+        
+        let response = try await client.awaitResponse(forRequestId: requestId)
+        
+        guard response.error == nil else {
+            throw AIError.serverError("Initialization failed")
+        }
         
         self.processManager = manager
         self.rpcClient = client
         self.isInitialized = true
+    }
+    
+    private func createSession() async throws {
+        guard let rpcClient = rpcClient,
+              let processManager = processManager else {
+            throw AIError.serverError("Client not initialized")
+        }
+        
+        let params: [String: Any] = [:]
+        
+        let (requestId, requestData) = try rpcClient.createRequest(method: "session/new", params: params)
+        try processManager.write(requestData)
+        
+        let response = try await rpcClient.awaitResponse(forRequestId: requestId)
+        
+        guard let result = response.result?.value as? [String: Any],
+              let sessionId = result["sessionId"] as? String else {
+            throw AIError.serverError("Failed to create session")
+        }
+        
+        self.sessionId = sessionId
+    }
+    
+    private func sendPrompt(sessionId: String, message: String, context: [AIMessage]) async throws -> String {
+        guard let rpcClient = rpcClient,
+              let processManager = processManager else {
+            throw AIError.serverError("Client not initialized")
+        }
+        
+        // Build prompt with context
+        var contentBlocks: [[String: Any]] = []
+        
+        // Add context messages if any
+        for msg in context {
+            contentBlocks.append([
+                "type": "text",
+                "text": "\(msg.role): \(msg.content)"
+            ])
+        }
+        
+        // Add current message
+        contentBlocks.append([
+            "type": "text",
+            "text": message
+        ])
+        
+        let params: [String: Any] = [
+            "sessionId": sessionId,
+            "prompt": contentBlocks
+        ]
+        
+        // Reset accumulated response
+        accumulatedResponse = ""
+        
+        let (requestId, requestData) = try rpcClient.createRequest(method: "session/prompt", params: params)
+        try processManager.write(requestData)
+        
+        let response = try await rpcClient.awaitResponse(forRequestId: requestId)
+        
+        guard response.error == nil else {
+            let errorMsg = response.error?.message ?? "Unknown error"
+            throw AIError.serverError(errorMsg)
+        }
+        
+        // Return accumulated response from notifications
+        return accumulatedResponse.isEmpty ? "No response received" : accumulatedResponse
+    }
+    
+    private func handleNotification(_ notification: JSONRPCNotification) {
+        guard let params = notification.params?.value as? [String: Any] else {
+            return
+        }
+        
+        switch notification.method {
+        case "session/update":
+            if let updateType = params["type"] as? String {
+                switch updateType {
+                case "agent_message_chunk":
+                    if let chunk = params["chunk"] as? [String: Any],
+                       let content = chunk["content"] as? [[String: Any]] {
+                        for block in content {
+                            if let type = block["type"] as? String,
+                               type == "text",
+                               let text = block["text"] as? String {
+                                accumulatedResponse += text
+                            }
+                        }
+                    }
+                default:
+                    break
+                }
+            }
+        default:
+            break
+        }
     }
     
     deinit {

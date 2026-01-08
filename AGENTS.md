@@ -48,7 +48,12 @@ Launch app with `make run`, then:
 2. Test text selection and "Add Quote" button (Cmd+Q)
 3. Type in the editor panel (center)
 4. Verify auto-save works (2-second debounce)
-5. Test AI chat (requires API key in settings)
+5. Test AI chat:
+   - **OpenAI/Anthropic**: Requires API key in settings
+   - **OpenCode**: Requires `opencode` CLI installed (e.g., `brew install opencode`)
+     - Set provider to "OpenCode" in AI settings
+     - Configure binary path (default: `/usr/local/bin/opencode`)
+     - Chat normally - OpenCode runs locally via ACP protocol
 
 ## Code Style Guidelines
 

@@ -31,6 +31,12 @@ struct JSONRPCResponse: Codable {
     let error: JSONRPCError?
 }
 
+struct JSONRPCNotification: Codable {
+    let jsonrpc: String
+    let method: String
+    let params: AnyCodable?
+}
+
 struct JSONRPCError: Codable {
     let code: Int
     let message: String
@@ -90,44 +96,46 @@ class JSONRPCClient {
     private var buffer = Data()
     private var requestId = 0
     private var pendingRequests: [Int: CheckedContinuation<JSONRPCResponse, Error>] = [:]
+    private var notificationHandler: ((JSONRPCNotification) -> Void)?
     
-    func sendRequest(method: String, params: [String: Any]?) async throws -> JSONRPCResponse {
+    func setNotificationHandler(_ handler: @escaping (JSONRPCNotification) -> Void) {
+        self.notificationHandler = handler
+    }
+    
+    func createRequest(method: String, params: [String: Any]?) throws -> (id: Int, data: Data) {
         requestId += 1
         let id = requestId
         
         let request = JSONRPCRequest(id: id, method: method, params: params)
         let encoder = JSONEncoder()
-        var data = try encoder.encode(request)
+        let jsonData = try encoder.encode(request)
         
-        // Add Content-Length header (JSON-RPC over stdio convention)
-        let contentLength = "Content-Length: \(data.count)\r\n\r\n"
+        let contentLength = "Content-Length: \(jsonData.count)\r\n\r\n"
         var message = contentLength.data(using: .utf8)!
-        message.append(data)
+        message.append(jsonData)
         
+        return (id, message)
+    }
+    
+    func awaitResponse(forRequestId id: Int) async throws -> JSONRPCResponse {
         return try await withCheckedThrowingContinuation { continuation in
             pendingRequests[id] = continuation
         }
     }
     
-    func getMessageToSend(method: String, params: [String: Any]?) throws -> Data {
-        requestId += 1
-        let id = requestId
-        
-        let request = JSONRPCRequest(id: id, method: method, params: params)
-        let encoder = JSONEncoder()
-        let data = try encoder.encode(request)
-        
-        let contentLength = "Content-Length: \(data.count)\r\n\r\n"
-        var message = contentLength.data(using: .utf8)!
-        message.append(data)
-        
-        return message
-    }
-    
     func handleIncomingData(_ data: Data) {
         buffer.append(data)
         
-        while let response = extractNextResponse() {
+        while let message = extractNextMessage() {
+            handleMessage(message)
+        }
+    }
+    
+    private func handleMessage(_ data: Data) {
+        let decoder = JSONDecoder()
+        
+        // Try to decode as response first
+        if let response = try? decoder.decode(JSONRPCResponse.self, from: data) {
             if let id = response.id, let continuation = pendingRequests.removeValue(forKey: id) {
                 if let error = response.error {
                     continuation.resume(throwing: NSError(domain: "JSONRPCError", code: error.code, userInfo: [NSLocalizedDescriptionKey: error.message]))
@@ -136,9 +144,13 @@ class JSONRPCClient {
                 }
             }
         }
+        // Try to decode as notification
+        else if let notification = try? decoder.decode(JSONRPCNotification.self, from: data) {
+            notificationHandler?(notification)
+        }
     }
     
-    private func extractNextResponse() -> JSONRPCResponse? {
+    private func extractNextMessage() -> Data? {
         guard let headerEnd = buffer.range(of: "\r\n\r\n".data(using: .utf8)!) else {
             return nil
         }
@@ -159,12 +171,7 @@ class JSONRPCClient {
         let bodyData = buffer[bodyStart..<bodyEnd]
         buffer.removeSubrange(..<bodyEnd)
         
-        do {
-            let decoder = JSONDecoder()
-            return try decoder.decode(JSONRPCResponse.self, from: bodyData)
-        } catch {
-            return nil
-        }
+        return bodyData
     }
     
     private func parseContentLength(from header: String) -> Int? {
