@@ -38,6 +38,11 @@ class AIViewModel: ObservableObject {
         
         isProcessing = false
     }
+    
+    func newThread() {
+        messages.removeAll()
+        errorMessage = nil
+    }
 }
 
 struct ChatMessage: Identifiable {
@@ -55,125 +60,249 @@ struct AIPanel: View {
     @ObservedObject var viewModel: AIViewModel
     @State private var inputText: String = ""
     @State private var showingSettings = false
+    @State private var showingModelPicker = false
     
     var body: some View {
         VStack(spacing: 0) {
-            // Header
+            // Header - minimal like reference
             HStack {
-                Text("AI Assistant")
-                    .font(.headline)
-                Spacer()
-                Button(action: { showingSettings.toggle() }) {
-                    Image(systemName: "gearshape")
-                }
-                .buttonStyle(.borderless)
-            }
-            .padding()
-            .background(Color(NSColor.controlBackgroundColor))
-            
-            Divider()
-            
-            // Error message
-            if let error = viewModel.errorMessage {
-                HStack {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundColor(.orange)
-                    Text(error)
-                        .font(.caption)
+                // Left: New conversation button
+                Button(action: viewModel.newThread) {
+                    Image(systemName: "square.and.pencil")
+                        .font(.system(size: 14))
                         .foregroundColor(.secondary)
                 }
-                .padding(8)
-                .background(Color.orange.opacity(0.1))
+                .buttonStyle(.plain)
+                
+                Menu {
+                    Button("New Conversation", action: viewModel.newThread)
+                } label: {
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                }
+                .menuStyle(.borderlessButton)
+                .frame(width: 16)
+                
+                Spacer()
+                
+                // Center: Title with dropdown
+                Button(action: {}) {
+                    HStack(spacing: 4) {
+                        Text("New Conversation")
+                            .font(.system(size: 13))
+                            .foregroundColor(.primary)
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 9))
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .buttonStyle(.plain)
+                
+                Spacer()
+                
+                // Right: History
+                Button(action: {}) {
+                    Image(systemName: "clock")
+                        .font(.system(size: 14))
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
             }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
             
-            // Chat History
+            Divider()
+                .opacity(0.5)
+            
+            // Chat Content - clean white space
             ScrollViewReader { proxy in
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 12) {
+                    LazyVStack(alignment: .leading, spacing: 20) {
+                        // Error message
+                        if let error = viewModel.errorMessage {
+                            HStack(spacing: 8) {
+                                Image(systemName: "exclamationmark.triangle")
+                                    .font(.system(size: 12))
+                                Text(error)
+                                    .font(.system(size: 13))
+                            }
+                            .foregroundColor(.orange)
+                            .padding(12)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.orange.opacity(0.06))
+                            .cornerRadius(8)
+                        }
+                        
+                        // Messages
                         ForEach(viewModel.messages) { message in
-                            ChatBubble(message: message)
+                            MessageView(message: message)
                                 .id(message.id)
                         }
                         
+                        // Processing indicator
                         if viewModel.isProcessing {
-                            HStack {
+                            HStack(spacing: 8) {
                                 ProgressView()
-                                    .scaleEffect(0.7)
+                                    .scaleEffect(0.6)
                                 Text("Thinking...")
-                                    .font(.caption)
+                                    .font(.system(size: 13))
                                     .foregroundColor(.secondary)
                             }
+                            .padding(.vertical, 8)
                         }
                     }
-                    .padding()
+                    .padding(16)
                 }
-                .onReceive(viewModel.$messages) { messages in
-                    if let lastMessage = messages.last {
-                        withAnimation {
+                .onChange(of: viewModel.messages.count) { _ in
+                    if let lastMessage = viewModel.messages.last {
+                        withAnimation(.easeOut(duration: 0.2)) {
                             proxy.scrollTo(lastMessage.id, anchor: .bottom)
                         }
                     }
                 }
             }
             
-            Divider()
+            Spacer()
             
-            // Input Area
-            HStack {
-                TextField("Ask AI...", text: $inputText)
-                    .textFieldStyle(.plain)
-                    .padding(8)
-                    .background(Color(NSColor.textBackgroundColor))
-                    .cornerRadius(8)
-                    .onSubmit {
-                        sendMessage()
+            // Bottom section
+            VStack(spacing: 12) {
+                // Model selector - like reference "No model selected"
+                Button(action: { showingModelPicker.toggle() }) {
+                    HStack {
+                        Text(modelDisplayName)
+                            .font(.system(size: 13))
+                            .foregroundColor(.secondary)
+                        Spacer()
                     }
-                
-                Button(action: sendMessage) {
-                    Image(systemName: "paperplane.fill")
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
+                    .cornerRadius(8)
                 }
-                .buttonStyle(.borderless)
-                .disabled(inputText.isEmpty || viewModel.isProcessing)
+                .buttonStyle(.plain)
+                .popover(isPresented: $showingModelPicker) {
+                    modelPickerView
+                }
+                
+                // Bottom toolbar
+                HStack(spacing: 16) {
+                    // Attachment button
+                    Button(action: {}) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "paperclip")
+                                .font(.system(size: 14))
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 8))
+                        }
+                        .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    
+                    Spacer()
+                    
+                    // Right side icons
+                    HStack(spacing: 12) {
+                        Button(action: {}) {
+                            Image(systemName: "slider.horizontal.3")
+                                .font(.system(size: 14))
+                                .foregroundColor(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        
+                        Button(action: { showingSettings.toggle() }) {
+                            Image(systemName: "gearshape")
+                                .font(.system(size: 14))
+                                .foregroundColor(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
             }
-            .padding()
+            .padding(.horizontal, 16)
+            .padding(.bottom, 16)
         }
+        .background(Color(NSColor.windowBackgroundColor))
         .sheet(isPresented: $showingSettings) {
             AISettingsView(aiService: viewModel.aiService)
         }
     }
     
-    private func sendMessage() {
-        let message = inputText
-        inputText = ""
-        
-        Task {
-            await viewModel.sendMessage(message)
+    private var modelDisplayName: String {
+        if viewModel.aiService.apiKey.isEmpty {
+            return "No model selected"
         }
+        return viewModel.aiService.provider == .openai ? "GPT-4" : "Claude"
+    }
+    
+    private var modelPickerView: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button(action: {
+                viewModel.aiService.provider = .openai
+                showingModelPicker = false
+            }) {
+                HStack {
+                    Text("GPT-4")
+                        .font(.system(size: 13))
+                    Spacer()
+                    if viewModel.aiService.provider == .openai {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 12))
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            
+            Divider()
+            
+            Button(action: {
+                viewModel.aiService.provider = .anthropic
+                showingModelPicker = false
+            }) {
+                HStack {
+                    Text("Claude")
+                        .font(.system(size: 13))
+                    Spacer()
+                    if viewModel.aiService.provider == .anthropic {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 12))
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+        .frame(width: 160)
+        .background(Color(NSColor.windowBackgroundColor))
     }
 }
 
-struct ChatBubble: View {
+// MARK: - Message View
+struct MessageView: View {
     let message: ChatMessage
     
     var body: some View {
-        HStack {
-            if message.role == .user {
-                Spacer()
-            }
+        VStack(alignment: .leading, spacing: 6) {
+            Text(message.role == .user ? "You" : "Assistant")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(.secondary)
             
             Text(message.content)
-                .padding(10)
-                .background(message.role == .user ? Color.blue.opacity(0.2) : Color.gray.opacity(0.2))
-                .cornerRadius(12)
+                .font(.system(size: 13))
+                .foregroundColor(.primary)
                 .textSelection(.enabled)
-            
-            if message.role == .assistant {
-                Spacer()
-            }
+                .lineSpacing(3)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
+// MARK: - Settings View
 struct AISettingsView: View {
     @ObservedObject var aiService: AIService
     @Environment(\.dismiss) var dismiss
@@ -181,8 +310,7 @@ struct AISettingsView: View {
     var body: some View {
         VStack(spacing: 20) {
             Text("AI Settings")
-                .font(.title2)
-                .fontWeight(.semibold)
+                .font(.system(size: 15, weight: .semibold))
             
             Picker("Provider", selection: $aiService.provider) {
                 ForEach(AIProvider.allCases, id: \.self) { provider in
@@ -191,13 +319,14 @@ struct AISettingsView: View {
             }
             .pickerStyle(.segmented)
             
-            VStack(alignment: .leading) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text("API Key")
-                    .font(.caption)
+                    .font(.system(size: 12))
                     .foregroundColor(.secondary)
                 
                 SecureField("Enter your API key", text: $aiService.apiKey)
                     .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 13))
             }
             
             HStack {
@@ -213,9 +342,11 @@ struct AISettingsView: View {
                     dismiss()
                 }
                 .keyboardShortcut(.defaultAction)
+                .buttonStyle(.borderedProminent)
+                .tint(Color("SlateIndigo"))
             }
         }
-        .padding(24)
-        .frame(width: 400)
+        .padding(20)
+        .frame(width: 360)
     }
 }

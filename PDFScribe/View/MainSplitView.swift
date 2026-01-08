@@ -2,6 +2,20 @@ import SwiftUI
 import PDFKit
 import UniformTypeIdentifiers
 
+// MARK: - Backward Compatibility Extension for Liquid Glass
+extension View {
+    @ViewBuilder
+    func glassBackground() -> some View {
+        if #available(macOS 26.0, *) {
+            // When macOS 26 is available, use Liquid Glass
+            // self.glassEffect()
+            self.background(.ultraThinMaterial) // Placeholder until macOS 26
+        } else {
+            self.background(.ultraThinMaterial)
+        }
+    }
+}
+
 struct MainSplitView: View {
     @EnvironmentObject var appViewModel: AppViewModel
     @EnvironmentObject var pdfViewModel: PDFViewModel
@@ -12,40 +26,55 @@ struct MainSplitView: View {
     @State private var showingError = false
     @State private var errorMessage = ""
     @State private var pdfViewInstance: PDFView?
+    @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
     var body: some View {
-        HSplitView {
-            // PDF Area
-            VStack(spacing: 0) {
-                if pdfViewModel.document != nil {
-                    PDFControlBar(viewModel: pdfViewModel, pdfView: pdfViewInstance)
-                    PDFPanel(viewModel: pdfViewModel, pdfViewInstance: $pdfViewInstance)
-                } else {
-                    VStack {
-                        Text("PDF Viewer")
-                            .font(.title)
-                            .foregroundColor(.secondary)
-                        Button("Open PDF") {
-                            openPDF()
-                        }
+        NavigationSplitView(columnVisibility: $columnVisibility) {
+            // Sidebar - Project Browser (will auto-get Liquid Glass on macOS 26)
+            ProjectSidebarView()
+                .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 300)
+        } detail: {
+            // Content - PDF Viewer + Editor (AI moved to sidebar)
+            HStack(spacing: 0) {
+                // PDF Area
+                VStack(spacing: 0) {
+                    if pdfViewModel.document != nil {
+                        PDFControlBar(viewModel: pdfViewModel, pdfView: pdfViewInstance)
+                        PDFPanel(viewModel: pdfViewModel, pdfViewInstance: $pdfViewInstance)
+                    } else {
+                        emptyStateView
                     }
                 }
-            }
-            .frame(minWidth: 400, maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color(NSColor.controlBackgroundColor))
+                .frame(minWidth: 350, maxWidth: .infinity, maxHeight: .infinity)
 
-            // Editor Area
-            EditorPanel(viewModel: editorViewModel)
-                .frame(minWidth: 300, maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color(NSColor.textBackgroundColor))
-            
-            // AI Sidebar Area
-            AIPanel(viewModel: aiViewModel)
-                .frame(width: 300)
-                .frame(maxHeight: .infinity)
-                .background(Color(NSColor.windowBackgroundColor))
+                // Editor Area - PaperWhite background
+                EditorPanel(viewModel: editorViewModel)
+                    .frame(minWidth: 300, maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color("PaperWhite"))
+            }
         }
+        .navigationSplitViewStyle(.prominentDetail)
         .frame(minWidth: 1000, minHeight: 600)
+        .toolbar {
+            // File actions
+            ToolbarItem(placement: .navigation) {
+                Button(action: openProjectFolder) {
+                    Label("Open Project", systemImage: "folder")
+                }
+            }
+            ToolbarItem(placement: .navigation) {
+                Button(action: openPDF) {
+                    Label("Open PDF", systemImage: "doc.text")
+                }
+            }
+            ToolbarItem(placement: .navigation) {
+                Button(action: saveNote) {
+                    Label("Save", systemImage: "square.and.arrow.down")
+                }
+                .keyboardShortcut("s", modifiers: .command)
+                .help("Save Note (⌘S)")
+            }
+        }
         .onReceive(pdfViewModel.$pendingQuote) { selection in
             if let selection = selection, !selection.text.isEmpty {
                 editorViewModel.insertQuote(text: selection.text, pageNumber: selection.pageNumber)
@@ -55,11 +84,51 @@ struct MainSplitView: View {
         .onAppear {
             setupAutoSave()
         }
-        .alert("Error Opening PDF", isPresented: $showingError) {
+        .alert("Error", isPresented: $showingError) {
             Button("OK", role: .cancel) { }
         } message: {
             Text(errorMessage)
         }
+    }
+    
+    // MARK: - Empty State View
+    private var emptyStateView: some View {
+        VStack(spacing: 24) {
+            Text("PDFScribe")
+                .font(.system(size: 28, weight: .semibold, design: .serif))
+                .foregroundColor(.primary)
+            
+            Text("Open a project folder or PDF to begin")
+                .font(.system(size: 15, design: .default))
+                .foregroundColor(.secondary)
+            
+            HStack(spacing: 16) {
+                Button(action: openProjectFolder) {
+                    Label("Open Project", systemImage: "folder")
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Color("SlateIndigo"))
+                
+                Button(action: openPDF) {
+                    Label("Open PDF", systemImage: "doc.text")
+                }
+                .buttonStyle(.bordered)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+    
+    // MARK: - Actions
+    private func openProjectFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Open Project"
+        
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        
+        appViewModel.loadProject(url: url)
     }
     
     private func openPDF() {
@@ -69,7 +138,10 @@ struct MainSplitView: View {
         
         guard panel.runModal() == .OK, let url = panel.url else { return }
         
-        // Validate file
+        loadPDF(url: url)
+    }
+    
+    private func loadPDF(url: URL) {
         guard url.isFileURL else {
             showError("Invalid file URL")
             return
@@ -84,7 +156,7 @@ struct MainSplitView: View {
         do {
             let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
             if let fileSize = attributes[.size] as? UInt64 {
-                let maxSize: UInt64 = 100 * 1024 * 1024 // 100MB
+                let maxSize: UInt64 = 100 * 1024 * 1024
                 guard fileSize < maxSize else {
                     showError("File is too large. Maximum size is 100MB")
                     return
@@ -95,15 +167,15 @@ struct MainSplitView: View {
             return
         }
         
-        // Load PDF
         do {
             try pdfViewModel.loadPDF(url: url)
             appViewModel.documentTitle = url.deletingPathExtension().lastPathComponent
             
-            // Associate and load note file
             let noteURL = fileService.associateNoteWithPDF(pdfURL: url)
             if let noteContent = fileService.loadNote(from: noteURL) {
                 editorViewModel.loadContent(noteContent)
+            } else {
+                editorViewModel.loadContent("")
             }
         } catch {
             showError("Could not load PDF: \(error.localizedDescription)")
@@ -113,6 +185,15 @@ struct MainSplitView: View {
     private func setupAutoSave() {
         editorViewModel.contentDidChange = { [weak fileService] content in
             fileService?.scheduleAutoSave(content: content)
+        }
+    }
+    
+    private func saveNote() {
+        guard let url = fileService.currentNoteURL else { return }
+        do {
+            try fileService.saveNote(content: editorViewModel.content, to: url)
+        } catch {
+            showError("Could not save note: \(error.localizedDescription)")
         }
     }
     
