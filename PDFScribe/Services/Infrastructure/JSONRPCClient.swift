@@ -108,13 +108,12 @@ class JSONRPCClient {
         
         let request = JSONRPCRequest(id: id, method: method, params: params)
         let encoder = JSONEncoder()
-        let jsonData = try encoder.encode(request)
+        var jsonData = try encoder.encode(request)
         
-        let contentLength = "Content-Length: \(jsonData.count)\r\n\r\n"
-        var message = contentLength.data(using: .utf8)!
-        message.append(jsonData)
+        // OpenCode expects newline-delimited JSON (no Content-Length header)
+        jsonData.append("\n".data(using: .utf8)!)
         
-        return (id, message)
+        return (id, jsonData)
     }
     
     func awaitResponse(forRequestId id: Int) async throws -> JSONRPCResponse {
@@ -126,16 +125,51 @@ class JSONRPCClient {
     func handleIncomingData(_ data: Data) {
         buffer.append(data)
         
-        while let message = extractNextMessage() {
+        // OpenCode uses newline-delimited JSON
+        while let message = extractNextMessageNewlineDelimited() {
             handleMessage(message)
         }
+    }
+    
+    private func extractNextMessageNewlineDelimited() -> Data? {
+        guard let newlineIndex = buffer.firstIndex(of: UInt8(ascii: "\n")) else {
+            return nil
+        }
+        
+        let messageData = buffer[..<newlineIndex]
+        buffer.removeSubrange(...newlineIndex)
+        
+        return messageData
     }
     
     private func handleMessage(_ data: Data) {
         let decoder = JSONDecoder()
         
-        // Try to decode as response first
+        if let jsonString = String(data: data, encoding: .utf8) {
+            print("JSONRPCClient: Handling message: \(jsonString)")
+        }
+        
+        // Check if this is a notification (has "method" but no "id")
+        // Try notification first since notifications don't have "id"
+        if let notification = try? decoder.decode(JSONRPCNotification.self, from: data),
+           !notification.method.isEmpty {
+            // Verify it's actually a notification by checking raw JSON doesn't have "id"
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               json["id"] == nil {
+                print("JSONRPCClient: Decoded as notification: \(notification.method)")
+                if notificationHandler != nil {
+                    print("JSONRPCClient: Calling notification handler")
+                    notificationHandler?(notification)
+                } else {
+                    print("JSONRPCClient: No notification handler set!")
+                }
+                return
+            }
+        }
+        
+        // Try to decode as response
         if let response = try? decoder.decode(JSONRPCResponse.self, from: data) {
+            print("JSONRPCClient: Decoded as response with id: \(response.id ?? -1)")
             if let id = response.id, let continuation = pendingRequests.removeValue(forKey: id) {
                 if let error = response.error {
                     continuation.resume(throwing: NSError(domain: "JSONRPCError", code: error.code, userInfo: [NSLocalizedDescriptionKey: error.message]))
@@ -143,47 +177,8 @@ class JSONRPCClient {
                     continuation.resume(returning: response)
                 }
             }
+        } else {
+            print("JSONRPCClient: Failed to decode message")
         }
-        // Try to decode as notification
-        else if let notification = try? decoder.decode(JSONRPCNotification.self, from: data) {
-            notificationHandler?(notification)
-        }
-    }
-    
-    private func extractNextMessage() -> Data? {
-        guard let headerEnd = buffer.range(of: "\r\n\r\n".data(using: .utf8)!) else {
-            return nil
-        }
-        
-        let headerData = buffer[..<headerEnd.lowerBound]
-        guard let headerString = String(data: headerData, encoding: .utf8),
-              let contentLength = parseContentLength(from: headerString) else {
-            return nil
-        }
-        
-        let bodyStart = headerEnd.upperBound
-        let bodyEnd = bodyStart.advanced(by: contentLength)
-        
-        guard buffer.count >= bodyEnd else {
-            return nil
-        }
-        
-        let bodyData = buffer[bodyStart..<bodyEnd]
-        buffer.removeSubrange(..<bodyEnd)
-        
-        return bodyData
-    }
-    
-    private func parseContentLength(from header: String) -> Int? {
-        let lines = header.components(separatedBy: "\r\n")
-        for line in lines {
-            if line.hasPrefix("Content-Length:") {
-                let parts = line.components(separatedBy: ":")
-                if parts.count == 2, let length = Int(parts[1].trimmingCharacters(in: .whitespaces)) {
-                    return length
-                }
-            }
-        }
-        return nil
     }
 }

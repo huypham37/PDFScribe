@@ -33,6 +33,7 @@ class AIService: ObservableObject {
     @Published var opencodePath: String = "/usr/local/bin/opencode"
     
     private var currentStrategy: AIProviderStrategy?
+    weak var appViewModel: AppViewModel?
     
     init() {
         loadAPIKey()
@@ -54,7 +55,8 @@ class AIService: ObservableObject {
         case .anthropic:
             currentStrategy = AnthropicStrategy(apiKey: apiKey)
         case .opencode:
-            currentStrategy = OpenCodeStrategy(binaryPath: opencodePath)
+            let workingDir = appViewModel?.projectRootURL?.path
+            currentStrategy = OpenCodeStrategy(binaryPath: opencodePath, workingDirectory: workingDir)
         }
     }
     
