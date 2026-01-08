@@ -312,8 +312,15 @@ class OpenCodeStrategy: AIProviderStrategy {
             if let toolCallId = update["toolCallId"] as? String,
                let title = update["title"] as? String,
                let kind = update["kind"] as? String {
-                // Combine title and kind for better display
-                let displayTitle = "\(title): \(kind)"
+                // Check if this is a sub-agent delegation (task tool with subagent_type)
+                var displayTitle = "\(title): \(kind)"
+                
+                if title == "task",
+                   let rawInput = update["rawInput"] as? [String: Any],
+                   let subagentType = rawInput["subagent_type"] as? String {
+                    displayTitle = "Delegate: \(subagentType)"
+                }
+                
                 Task { @MainActor in
                     toolCallHandler?.addToolCall(id: toolCallId, title: displayTitle)
                 }
