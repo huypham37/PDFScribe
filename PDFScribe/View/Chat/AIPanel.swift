@@ -249,6 +249,8 @@ struct AIPanel: View {
     }
     
     private func sendMessage() {
+        guard !viewModel.isProcessing else { return }
+        
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         

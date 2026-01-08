@@ -128,22 +128,11 @@ class OpenCodeStrategy: AIProviderStrategy {
             throw AIError.serverError("Client not initialized")
         }
         
-        // Build prompt with context
-        var contentBlocks: [[String: Any]] = []
-        
-        // Add context messages if any
-        for msg in context {
-            contentBlocks.append([
-                "type": "text",
-                "text": "\(msg.role): \(msg.content)"
-            ])
-        }
-        
-        // Add current message
-        contentBlocks.append([
-            "type": "text",
-            "text": message
-        ])
+        // Build prompt - just send the current message
+        // Context is maintained by OpenCode session
+        let contentBlocks: [[String: Any]] = [
+            ["type": "text", "text": message]
+        ]
         
         let params: [String: Any] = [
             "sessionId": sessionId,
