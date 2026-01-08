@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 @main
 struct PDFScribeApp: App {
@@ -13,6 +14,9 @@ struct PDFScribeApp: App {
         let service = AIService()
         _aiService = StateObject(wrappedValue: service)
         _aiViewModel = StateObject(wrappedValue: AIViewModel(aiService: service))
+        
+        // Bring app to foreground
+        NSApplication.shared.activate(ignoringOtherApps: true)
     }
 
     var body: some Scene {

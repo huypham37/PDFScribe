@@ -1,32 +1,33 @@
-//
-//  PDFScribeApp.swift
-//  PDFScribe
-//
-//  Created by charles on 08/01/2026.
-//
-
 import SwiftUI
-import SwiftData
+import AppKit
 
 @main
 struct PDFScribeApp: App {
-    var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            Item.self,
-        ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-
-        do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
-        } catch {
-            fatalError("Could not create ModelContainer: \(error)")
-        }
-    }()
+    @StateObject private var appViewModel = AppViewModel()
+    @StateObject private var pdfViewModel = PDFViewModel()
+    @StateObject private var editorViewModel = EditorViewModel()
+    @StateObject private var fileService = FileService()
+    @StateObject private var aiService = AIService()
+    @StateObject private var aiViewModel: AIViewModel
+    
+    init() {
+        let service = AIService()
+        _aiService = StateObject(wrappedValue: service)
+        _aiViewModel = StateObject(wrappedValue: AIViewModel(aiService: service))
+        
+        // Bring app to foreground
+        NSApplication.shared.activate(ignoringOtherApps: true)
+    }
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            MainSplitView()
+                .environmentObject(appViewModel)
+                .environmentObject(pdfViewModel)
+                .environmentObject(editorViewModel)
+                .environmentObject(aiViewModel)
+                .environmentObject(fileService)
         }
-        .modelContainer(sharedModelContainer)
+        .windowStyle(.titleBar)
     }
 }
