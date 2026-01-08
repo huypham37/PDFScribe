@@ -51,12 +51,15 @@ struct PDFPanel: NSViewRepresentable {
     class Coordinator: NSObject {
         weak var viewModel: PDFViewModel?
         weak var pdfView: PDFView?
+        private var selectionTimer: Timer?
+        private var lastSelection: (text: String, pageNumber: Int)?
         
         init(_ viewModel: PDFViewModel) {
             self.viewModel = viewModel
         }
         
         deinit {
+            selectionTimer?.invalidate()
             if let pdfView = pdfView {
                 NotificationCenter.default.removeObserver(self, name: .PDFViewSelectionChanged, object: pdfView)
                 NotificationCenter.default.removeObserver(self, name: .PDFViewPageChanged, object: pdfView)
@@ -67,7 +70,8 @@ struct PDFPanel: NSViewRepresentable {
         @objc func selectionChanged(_ notification: Notification) {
             guard let pdfView = notification.object as? PDFView,
                   let selection = pdfView.currentSelection,
-                  let text = selection.string else {
+                  let text = selection.string,
+                  !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                 return
             }
             
@@ -82,7 +86,23 @@ struct PDFPanel: NSViewRepresentable {
                 pageNumber = 1 // Fallback to page 1
             }
             
-            viewModel?.selectedText = PDFSelection(text: text, pageNumber: pageNumber)
+            // Store the selection but don't insert yet
+            lastSelection = (text, pageNumber)
+            
+            // Cancel previous timer
+            selectionTimer?.invalidate()
+            
+            // Wait 0.5 seconds after user stops selecting before inserting
+            let capturedSelection = lastSelection
+            selectionTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    guard let self = self,
+                          let selection = capturedSelection else { return }
+                    
+                    self.viewModel?.selectedText = PDFSelection(text: selection.text, pageNumber: selection.pageNumber)
+                    self.lastSelection = nil
+                }
+            }
         }
         
         @MainActor
