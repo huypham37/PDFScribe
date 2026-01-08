@@ -45,10 +45,10 @@ struct MainSplitView: View {
                 .background(Color(NSColor.windowBackgroundColor))
         }
         .frame(minWidth: 1000, minHeight: 600)
-        .onReceive(pdfViewModel.$selectedText) { selection in
+        .onReceive(pdfViewModel.$pendingQuote) { selection in
             if let selection = selection, !selection.text.isEmpty {
                 editorViewModel.insertQuote(text: selection.text, pageNumber: selection.pageNumber)
-                pdfViewModel.selectedText = nil
+                pdfViewModel.pendingQuote = nil
             }
         }
         .onAppear {
