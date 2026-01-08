@@ -2,8 +2,11 @@ import SwiftUI
 
 struct MainSplitView: View {
     @EnvironmentObject var appViewModel: AppViewModel
-    @StateObject private var pdfViewModel = PDFViewModel()
-    @StateObject private var editorViewModel = EditorViewModel()
+    @EnvironmentObject var pdfViewModel: PDFViewModel
+    @EnvironmentObject var editorViewModel: EditorViewModel
+    
+    @State private var showingError = false
+    @State private var errorMessage = ""
 
     var body: some View {
         HSplitView {
@@ -43,6 +46,11 @@ struct MainSplitView: View {
                 pdfViewModel.selectedText = nil
             }
         }
+        .alert("Error Opening PDF", isPresented: $showingError) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(errorMessage)
+        }
     }
     
     private func openPDF() {
@@ -50,9 +58,45 @@ struct MainSplitView: View {
         panel.allowedContentTypes = [.pdf]
         panel.allowsMultipleSelection = false
         
-        if panel.runModal() == .OK, let url = panel.url {
-            pdfViewModel.loadPDF(url: url)
-            appViewModel.documentTitle = url.deletingPathExtension().lastPathComponent
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        
+        // Validate file
+        guard url.isFileURL else {
+            showError("Invalid file URL")
+            return
         }
+        
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            showError("File does not exist")
+            return
+        }
+        
+        // Check file size (limit to 100MB)
+        do {
+            let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+            if let fileSize = attributes[.size] as? UInt64 {
+                let maxSize: UInt64 = 100 * 1024 * 1024 // 100MB
+                guard fileSize < maxSize else {
+                    showError("File is too large. Maximum size is 100MB")
+                    return
+                }
+            }
+        } catch {
+            showError("Could not read file attributes: \(error.localizedDescription)")
+            return
+        }
+        
+        // Load PDF
+        do {
+            try pdfViewModel.loadPDF(url: url)
+            appViewModel.documentTitle = url.deletingPathExtension().lastPathComponent
+        } catch {
+            showError("Could not load PDF: \(error.localizedDescription)")
+        }
+    }
+    
+    private func showError(_ message: String) {
+        errorMessage = message
+        showingError = true
     }
 }

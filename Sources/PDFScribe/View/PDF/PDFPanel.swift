@@ -10,6 +10,8 @@ struct PDFPanel: NSViewRepresentable {
         pdfView.displayMode = .singlePageContinuous
         pdfView.displayBox = .mediaBox
         
+        context.coordinator.pdfView = pdfView
+        
         NotificationCenter.default.addObserver(
             context.coordinator,
             selector: #selector(Coordinator.selectionChanged(_:)),
@@ -30,11 +32,22 @@ struct PDFPanel: NSViewRepresentable {
         Coordinator(viewModel)
     }
     
+    static func dismantleNSView(_ nsView: PDFView, coordinator: Coordinator) {
+        NotificationCenter.default.removeObserver(coordinator, name: .PDFViewSelectionChanged, object: nsView)
+    }
+    
     class Coordinator: NSObject {
-        var viewModel: PDFViewModel
+        weak var viewModel: PDFViewModel?
+        weak var pdfView: PDFView?
         
         init(_ viewModel: PDFViewModel) {
             self.viewModel = viewModel
+        }
+        
+        deinit {
+            if let pdfView = pdfView {
+                NotificationCenter.default.removeObserver(self, name: .PDFViewSelectionChanged, object: pdfView)
+            }
         }
         
         @MainActor
@@ -45,7 +58,7 @@ struct PDFPanel: NSViewRepresentable {
                 return
             }
             
-            viewModel.selectedText = text
+            viewModel?.selectedText = text
         }
     }
 }

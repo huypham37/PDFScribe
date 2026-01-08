@@ -1,5 +1,6 @@
 import SwiftUI
 
+@MainActor
 class AppViewModel: ObservableObject {
     @Published var documentTitle: String = "Untitled"
     

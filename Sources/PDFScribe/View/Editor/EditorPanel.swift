@@ -20,8 +20,21 @@ struct EditorPanel: NSViewRepresentable {
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         let textView = scrollView.documentView as! NSTextView
-        if textView.string != viewModel.content {
-            textView.string = viewModel.content
+        
+        // Only update if the text view is not being edited and content differs
+        // This preserves cursor position and prevents disrupting user input
+        guard let window = textView.window,
+              window.firstResponder != textView,
+              textView.string != viewModel.content else {
+            return
+        }
+        
+        let selectedRange = textView.selectedRange()
+        textView.string = viewModel.content
+        
+        // Attempt to restore selection if valid
+        if selectedRange.location != NSNotFound && selectedRange.location <= textView.string.count {
+            textView.setSelectedRange(selectedRange)
         }
     }
     
@@ -30,7 +43,7 @@ struct EditorPanel: NSViewRepresentable {
     }
     
     class Coordinator: NSObject, NSTextViewDelegate {
-        var viewModel: EditorViewModel
+        weak var viewModel: EditorViewModel?
         
         init(_ viewModel: EditorViewModel) {
             self.viewModel = viewModel
@@ -39,8 +52,8 @@ struct EditorPanel: NSViewRepresentable {
         func textDidChange(_ notification: Notification) {
             guard let textView = notification.object as? NSTextView else { return }
             let content = textView.string
-            DispatchQueue.main.async { [weak self] in
-                self?.viewModel.content = content
+            Task { @MainActor in
+                self.viewModel?.content = content
             }
         }
     }
