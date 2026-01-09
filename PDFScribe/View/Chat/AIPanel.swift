@@ -170,8 +170,8 @@ class AIViewModel: ObservableObject, ToolCallHandler {
                     fullResponse.append(char)
                     messages[assistantIndex] = ChatMessage(role: .assistant, content: fullResponse)
                     
-                    // Small delay for smooth typing effect (2ms per character)
-                    try? await Task.sleep(nanoseconds: 2_000_000)
+                    // Use customizable typing speed
+                    try? await Task.sleep(nanoseconds: aiService.typingSpeed.nanoseconds)
                 }
             }
             
@@ -967,6 +967,23 @@ struct AISettingsView: View {
                     }
                     .pickerStyle(.menu)
                     .disabled(aiService.isConnecting)
+                }
+            }
+            
+            // Typing speed selector
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Typing Speed")
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary)
+                
+                Picker("Typing Speed", selection: $aiService.typingSpeed) {
+                    ForEach(TypingSpeed.allCases, id: \.self) { speed in
+                        Text(speed.displayName).tag(speed)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .onChange(of: aiService.typingSpeed) { _, _ in
+                    aiService.saveAPIKey()
                 }
             }
         }
