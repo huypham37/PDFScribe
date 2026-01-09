@@ -340,30 +340,12 @@ struct AIPanel: View {
                 }
                 .buttonStyle(.plain)
                 
-                Menu {
-                    Button("New Conversation", action: viewModel.newThread)
-                } label: {
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary)
-                }
-                .menuStyle(.borderlessButton)
-                .frame(width: 16)
-                
                 Spacer()
                 
-                // Center: Title with dropdown
-                Button(action: {}) {
-                    HStack(spacing: 4) {
-                        Text(viewModel.currentSessionTitle)
-                            .font(.system(size: 13))
-                            .foregroundColor(.primary)
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 9))
-                            .foregroundColor(.secondary)
-                    }
-                }
-                .buttonStyle(.plain)
+                // Center: Title
+                Text(viewModel.currentSessionTitle)
+                    .font(.system(size: 13))
+                    .foregroundColor(.primary)
                 
                 Spacer()
                 
