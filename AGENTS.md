@@ -242,6 +242,7 @@ let noteURL = fileService.associateNoteWithPDF(pdfURL: url)
 2. **updateNSView guard**: Too restrictive guards can prevent content updates
 3. **NotificationCenter leaks**: Observers must be removed in deinit
 4. **Quote spam**: Fixed by explicit "Add Quote" button (PR #11)
+5. **Symbol effect `.drawOn` invisibility**: `.drawOn.wholeSymbol` with `.repeat(.continuous)` renders as blank. Use `isActive:` with Timer toggle instead. See [.opencode/troubleshooting.md](.opencode/troubleshooting.md#issue-symboleffectdrawonwholesymbol-renders-as-invisibleblank)
 
 ## Future Work
 - Issue #8: Add search functionality for notes
