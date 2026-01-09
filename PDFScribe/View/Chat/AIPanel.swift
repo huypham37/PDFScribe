@@ -23,6 +23,9 @@ class AIViewModel: ObservableObject, ToolCallHandler {
     init(aiService: AIService) {
         self.aiService = aiService
         
+        // Register self as the tool call handler to receive tool call events
+        self.aiService.setToolCallHandler(self)
+        
         // Load available agent modes from OpenCode config
         self.availableModes = OpenCodeConfigLoader.shared.loadPrimaryAgents()
         print("📋 Loaded \(availableModes.count) agent modes: \(availableModes.map { $0.rawValue }.joined(separator: ", "))")

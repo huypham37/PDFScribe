@@ -43,9 +43,9 @@ class OpenCodeStrategy: AIProviderStrategy {
     
     func sendStream(message: String, context: AIContext) -> AsyncThrowingStream<String, Error> {
         return AsyncThrowingStream { continuation in
-            self.streamContinuation = continuation
-            
-            Task {
+            Task { @MainActor in
+                self.streamContinuation = continuation
+                
                 do {
                     // Reset delegation state for new user turn
                     self.activeDelegationId = nil
@@ -56,18 +56,21 @@ class OpenCodeStrategy: AIProviderStrategy {
                     }
                     
                     guard let sessionId = self.sessionId else {
-                        continuation.finish(throwing: AIError.serverError("No active session"))
+                        self.streamContinuation?.finish(throwing: AIError.serverError("No active session"))
+                        self.streamContinuation = nil
                         return
                     }
                     
                     try await self.sendPromptStreaming(sessionId: sessionId, message: message, context: context)
                 } catch {
-                    continuation.finish(throwing: error)
+                    self.streamContinuation?.finish(throwing: error)
+                    self.streamContinuation = nil
                 }
             }
         }
     }
     
+    @MainActor
     private func sendPromptStreaming(sessionId: String, message: String, context: AIContext) async throws {
         guard let rpcClient = rpcClient,
               let processManager = processManager else {
@@ -143,7 +146,9 @@ class OpenCodeStrategy: AIProviderStrategy {
         let (requestId, requestData) = try rpcClient.createRequest(method: "session/prompt", params: params)
         try processManager.write(requestData)
         
+        print("[ACP] Waiting for session/prompt response...")
         let response = try await rpcClient.awaitResponse(forRequestId: requestId)
+        print("[ACP] Got session/prompt response: \(response)")
         
         guard response.error == nil else {
             let errorMsg = response.error?.message ?? "Unknown error"
@@ -151,8 +156,9 @@ class OpenCodeStrategy: AIProviderStrategy {
         }
         
         // Finish the stream when response completes
-        streamContinuation?.finish()
-        streamContinuation = nil
+        print("[ACP] Finishing stream")
+        self.streamContinuation?.finish()
+        self.streamContinuation = nil
     }
     
     private func initialize() async throws {
@@ -303,14 +309,31 @@ class OpenCodeStrategy: AIProviderStrategy {
         
         guard notification.method == "session/update" else { return }
         
+        // Debug: print all sessionUpdate types
+        print("[ACP] sessionUpdate: \(sessionUpdate)")
+        
         switch sessionUpdate {
         case "agent_message_chunk":
+            // Suppress text chunks while a delegation is active (sub-agent output)
+            if activeDelegationId != nil {
+                return
+            }
+            
             if let content = update["content"] as? [String: Any],
                let type = content["type"] as? String,
                type == "text",
                let text = content["text"] as? String {
-                // Yield chunk to stream
-                streamContinuation?.yield(text)
+                // Yield chunk to stream on MainActor
+                Task { @MainActor in
+                    self.streamContinuation?.yield(text)
+                }
+            }
+        
+        case "agent_message_complete", "turn_complete", "agent_turn_complete":
+            // Agent finished generating response - finish the stream on MainActor
+            Task { @MainActor in
+                self.streamContinuation?.finish()
+                self.streamContinuation = nil
             }
             
         case "tool_call":
