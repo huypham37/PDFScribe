@@ -120,5 +120,14 @@ class FileService: ObservableObject {
             .sorted { $0.lastActive > $1.lastActive }
             .first
     }
+    
+    func getRecentSessions(for projectPath: String, limit: Int = 5) -> [ChatSession] {
+        let history = loadChatHistory()
+        return history.sessions
+            .filter { $0.projectPath == projectPath }
+            .sorted { $0.lastActive > $1.lastActive }
+            .prefix(limit)
+            .map { $0 }
+    }
 }
 

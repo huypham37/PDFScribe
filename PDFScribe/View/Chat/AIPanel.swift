@@ -10,16 +10,53 @@ class AIViewModel: ObservableObject, ToolCallHandler {
     @Published var mentionedFiles: [URL] = []
     @Published var showingSettings = false
     @Published var currentSessionTitle: String = "New Conversation"
+    @Published var recentSessions: [ChatSession] = []
     
     let aiService: AIService
     weak var editorViewModel: EditorViewModel?
     weak var pdfViewModel: PDFViewModel?
     weak var fileService: FileService?
+    weak var appViewModel: AppViewModel?
     
     init(aiService: AIService) {
         self.aiService = aiService
         aiService.setToolCallHandler(self)
         loadCurrentSessionMessages()
+        fetchRecentSessions()
+    }
+    
+    func fetchRecentSessions() {
+        guard let projectURL = appViewModel?.projectRootURL,
+              let fileService = fileService else {
+            print("⚠️ Cannot fetch sessions: projectURL or fileService not available")
+            return
+        }
+        
+        recentSessions = fileService.getRecentSessions(for: projectURL.path, limit: 5)
+        print("📚 Fetched \(recentSessions.count) recent sessions")
+    }
+    
+    func switchToSession(_ session: ChatSession) {
+        print("🔄 Switching to session: \(session.id) - \(session.title)")
+        
+        // Load messages from the session
+        let storedMessages = aiService.loadSession(session)
+        messages = storedMessages.map { stored in
+            ChatMessage(
+                role: stored.role == "user" ? .user : .assistant,
+                content: stored.content
+            )
+        }
+        
+        // Update UI
+        currentSessionTitle = session.title
+        errorMessage = nil
+        toolCalls.removeAll()
+        
+        // Refresh recent sessions list
+        fetchRecentSessions()
+        
+        print("✅ Switched to session with \(messages.count) messages")
     }
     
     func loadCurrentSessionMessages() {
@@ -234,6 +271,9 @@ class AIViewModel: ObservableObject, ToolCallHandler {
         // Create new session in AIService
         aiService.createNewSession()
         
+        // Refresh recent sessions list
+        fetchRecentSessions()
+        
         print("🆕 Started new conversation thread")
     }
 }
@@ -328,12 +368,31 @@ struct AIPanel: View {
                 Spacer()
                 
                 // Right: History
-                Button(action: {}) {
+                Menu {
+                    if viewModel.recentSessions.isEmpty {
+                        Text("No recent sessions")
+                            .foregroundColor(.secondary)
+                    } else {
+                        ForEach(viewModel.recentSessions) { session in
+                            Button(action: {
+                                viewModel.switchToSession(session)
+                            }) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(session.title)
+                                        .font(.system(size: 12))
+                                    Text(formatDate(session.lastActive))
+                                        .font(.system(size: 10))
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                        }
+                    }
+                } label: {
                     Image(systemName: "clock")
                         .font(.system(size: 14))
                         .foregroundColor(.secondary)
                 }
-                .buttonStyle(.plain)
+                .menuStyle(.borderlessButton)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
@@ -484,6 +543,23 @@ struct AIPanel: View {
             withAnimation(.easeOut(duration: 0.2)) {
                 proxy.scrollTo("bottom", anchor: .bottom)
             }
+        }
+    }
+    
+    private func formatDate(_ date: Date) -> String {
+        let now = Date()
+        let calendar = Calendar.current
+        
+        if calendar.isDateInToday(date) {
+            let formatter = DateFormatter()
+            formatter.timeStyle = .short
+            return "Today, \(formatter.string(from: date))"
+        } else if calendar.isDateInYesterday(date) {
+            return "Yesterday"
+        } else {
+            let formatter = DateFormatter()
+            formatter.dateStyle = .short
+            return formatter.string(from: date)
         }
     }
     
