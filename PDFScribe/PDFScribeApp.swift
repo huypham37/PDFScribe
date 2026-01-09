@@ -49,11 +49,5 @@ struct PDFScribeApp: App {
                 .environmentObject(fileService)
         }
         .windowStyle(.titleBar)
-        
-        // Test window for symbol effects
-        WindowGroup("Symbol Test", id: "symbol-test") {
-            TestSymbolView()
-        }
-        .defaultSize(width: 400, height: 600)
     }
 }

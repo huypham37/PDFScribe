@@ -33,7 +33,7 @@ struct MainSplitView: View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             // Sidebar - Project Browser (will auto-get Liquid Glass on macOS 26)
             // Expand width when in AI mode for better chat experience
-            ProjectSidebarView()
+            ProjectSidebarView(columnVisibility: $columnVisibility)
                 .navigationSplitViewColumnWidth(
                     min: appViewModel.sidebarMode == .ai ? 400 : 200,
                     ideal: appViewModel.sidebarMode == .ai ? 500 : 240,
