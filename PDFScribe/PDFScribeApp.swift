@@ -79,8 +79,8 @@ struct PDFScribeApp: App {
         .windowStyle(.titleBar)
         .commands {
             CommandGroup(after: .newItem) {
-                Button("Settings...") {
-                    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                SettingsLink {
+                    Text("Settings...")
                 }
                 .keyboardShortcut(",", modifiers: .command)
             }
