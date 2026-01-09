@@ -3,6 +3,7 @@ import Foundation
 protocol ToolCallHandler: AnyObject {
     func addToolCall(id: String, title: String)
     func updateToolCall(id: String, status: ToolCall.Status)
+    func updateToolCallTitle(id: String, title: String)
 }
 
 class OpenCodeStrategy: AIProviderStrategy {
@@ -17,6 +18,7 @@ class OpenCodeStrategy: AIProviderStrategy {
     private var availableModesList: [AIMode] = []
     private var selectedModel: AIModel?
     private var selectedMode: AIMode?
+    private var activeDelegationId: String? = nil  // Track when main agent delegates to sub-agent
     weak var toolCallHandler: ToolCallHandler?
     
     init(binaryPath: String, workingDirectory: String? = nil) {
@@ -40,6 +42,10 @@ class OpenCodeStrategy: AIProviderStrategy {
     func send(message: String, context: AIContext) async throws -> String {
         let sendStartTime = Date()
         print("OpenCodeStrategy.send() called - isInitialized: \(isInitialized), sessionId: \(sessionId ?? "nil")")
+        
+        // Reset delegation state for new user turn
+        activeDelegationId = nil
+        
         if !isInitialized {
             print("Initializing OpenCode...")
             try await initialize()
@@ -312,27 +318,37 @@ class OpenCodeStrategy: AIProviderStrategy {
             if let toolCallId = update["toolCallId"] as? String,
                let title = update["title"] as? String,
                let kind = update["kind"] as? String {
-                // Check if this is a sub-agent delegation (task tool with subagent_type)
-                var displayTitle = "\(title): \(kind)"
                 
-                if title == "task",
-                   let rawInput = update["rawInput"] as? [String: Any],
-                   let subagentType = rawInput["subagent_type"] as? String {
-                    displayTitle = "Delegate: \(subagentType)"
+                // If a delegation is active, ignore all subsequent tool calls (they're from sub-agent)
+                if activeDelegationId != nil {
+                    return
                 }
                 
-                Task { @MainActor in
-                    toolCallHandler?.addToolCall(id: toolCallId, title: displayTitle)
+                // Check if this is a delegation (task tool)
+                if title == "task" {
+                    // Mark that we're now delegating
+                    activeDelegationId = toolCallId
+                    
+                    // Format display title
+                    var displayTitle = "Delegate: \(kind)"
+                    if let rawInput = update["rawInput"] as? [String: Any],
+                       let subagentType = rawInput["subagent_type"] as? String {
+                        displayTitle = "Delegate: \(subagentType)"
+                    }
+                    
+                    Task { @MainActor in
+                        toolCallHandler?.addToolCall(id: toolCallId, title: displayTitle)
+                    }
+                } else {
+                    // Normal main agent tool call
+                    let displayTitle = "\(title): \(kind)"
+                    Task { @MainActor in
+                        toolCallHandler?.addToolCall(id: toolCallId, title: displayTitle)
+                    }
                 }
             }
             
         case "tool_call_update":
-            // Debug: print the entire update to see what fields are available
-            if let jsonData = try? JSONSerialization.data(withJSONObject: update),
-               let jsonString = String(data: jsonData, encoding: .utf8) {
-                print("OpenCode tool_call_update: \(jsonString)")
-            }
-            
             if let toolCallId = update["toolCallId"] as? String,
                let statusString = update["status"] as? String {
                 let status: ToolCall.Status = {
@@ -345,8 +361,26 @@ class OpenCodeStrategy: AIProviderStrategy {
                     default: return .inProgress
                     }
                 }()
+                
+                // Clear delegation state if this delegation completed
+                if toolCallId == activeDelegationId {
+                    if status == .completed || status == .failed || status == .cancelled {
+                        activeDelegationId = nil
+                    }
+                }
+                
+                // Check if this update contains rawInput with subagent_type (for title update)
+                var updatedTitle: String? = nil
+                if let rawInput = update["rawInput"] as? [String: Any],
+                   let subagentType = rawInput["subagent_type"] as? String {
+                    updatedTitle = "Delegate: \(subagentType)"
+                }
+                
                 Task { @MainActor in
                     toolCallHandler?.updateToolCall(id: toolCallId, status: status)
+                    if let newTitle = updatedTitle {
+                        toolCallHandler?.updateToolCallTitle(id: toolCallId, title: newTitle)
+                    }
                 }
             }
             

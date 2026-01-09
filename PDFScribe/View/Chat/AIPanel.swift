@@ -40,6 +40,13 @@ class AIViewModel: ObservableObject, ToolCallHandler {
         }
     }
     
+    func updateToolCallTitle(id: String, title: String) {
+        if var toolCall = toolCalls[id] {
+            toolCall.title = title
+            toolCalls[id] = toolCall
+        }
+    }
+    
     func sendMessage(_ text: String) async {
         guard !text.isEmpty else { return }
         
@@ -112,7 +119,7 @@ struct ChatMessage: Identifiable {
 
 struct ToolCall: Identifiable {
     let id: String // toolCallId from OpenCode
-    let title: String
+    var title: String
     var status: Status
     let timestamp: Date
     
@@ -224,8 +231,8 @@ struct AIPanel: View {
                             }
                         }
                         
-                        // Processing indicator
-                        if viewModel.isProcessing {
+                        // Processing indicator (only show if no tool calls are active)
+                        if viewModel.isProcessing && viewModel.toolCalls.isEmpty {
                             HStack(spacing: 8) {
                                 ProgressView()
                                     .scaleEffect(0.6)
@@ -464,6 +471,7 @@ struct MessageView: View {
 // MARK: - Tool Call View
 struct ToolCallView: View {
     let toolCall: ToolCall
+    @State private var pulseOpacity: Double = 1.0
     
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -474,6 +482,25 @@ struct ToolCallView: View {
             Text(toolCall.title)
                 .font(.system(size: 13))
                 .foregroundColor(toolCall.status == .inProgress ? Color.green : Color.gray)
+                .opacity(toolCall.status == .inProgress ? pulseOpacity : 1.0)
+                .onAppear {
+                    if toolCall.status == .inProgress {
+                        withAnimation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
+                            pulseOpacity = 0.3
+                        }
+                    }
+                }
+                .onChange(of: toolCall.status) { newStatus in
+                    if newStatus == .inProgress {
+                        withAnimation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
+                            pulseOpacity = 0.3
+                        }
+                    } else {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            pulseOpacity = 1.0
+                        }
+                    }
+                }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
