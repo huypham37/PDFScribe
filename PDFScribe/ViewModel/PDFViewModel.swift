@@ -16,6 +16,7 @@ struct PDFSelection {
 @MainActor
 class PDFViewModel: ObservableObject {
     @Published var document: PDFDocument?
+    @Published var currentPDFURL: URL?
     @Published var currentSelection: PDFSelection?  // Current selection (updates during drag)
     @Published var pendingQuote: PDFSelection?      // Quote to be inserted (set by button click)
     @Published var errorMessage: String?
@@ -40,6 +41,7 @@ class PDFViewModel: ObservableObject {
             throw PDFError.couldNotLoad
         }
         self.document = pdf
+        self.currentPDFURL = url
         self.totalPages = pdf.pageCount
         self.currentPage = 1
         self.errorMessage = nil

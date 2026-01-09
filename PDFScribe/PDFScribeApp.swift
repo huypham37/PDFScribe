@@ -33,6 +33,34 @@ struct PDFScribeApp: App {
             aiVM.editorViewModel = editorVM
             aiVM.pdfViewModel = pdfVM
             aiVM.fileService = fileSvc
+            
+            // Load saved app state and restore last session
+            let savedState = fileSvc.loadAppState()
+            
+            // Restore project directory
+            if let projectURL = savedState.projectDirectoryURL,
+               FileManager.default.fileExists(atPath: projectURL.path) {
+                appVM.loadProject(url: projectURL)
+            }
+            
+            // Restore PDF document
+            if let pdfURL = savedState.pdfFileURL,
+               FileManager.default.fileExists(atPath: pdfURL.path) {
+                try? pdfVM.loadPDF(url: pdfURL)
+            }
+            
+            // Restore note content
+            if let noteURL = savedState.noteFileURL,
+               FileManager.default.fileExists(atPath: noteURL.path),
+               let content = fileSvc.loadNote(from: noteURL) {
+                editorVM.loadContent(content)
+                fileSvc.currentNoteURL = noteURL
+            }
+            
+            // Restore sidebar mode
+            if let mode = savedState.lastSidebarMode {
+                appVM.sidebarMode = mode == "ai" ? .ai : .files
+            }
         }
         
         // Bring app to foreground
