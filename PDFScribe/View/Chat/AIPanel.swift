@@ -8,6 +8,7 @@ class AIViewModel: ObservableObject, ToolCallHandler {
     @Published var isProcessing: Bool = false
     @Published var errorMessage: String?
     @Published var mentionedFiles: [URL] = []
+    @Published var showingSettings = false
     
     let aiService: AIService
     weak var editorViewModel: EditorViewModel?
@@ -96,6 +97,10 @@ class AIViewModel: ObservableObject, ToolCallHandler {
         messages.removeAll()
         errorMessage = nil
     }
+    
+    func showSettings() {
+        showingSettings = true
+    }
 }
 
 struct ChatMessage: Identifiable {
@@ -143,7 +148,6 @@ struct AIPanel: View {
     @ObservedObject var viewModel: AIViewModel
     @EnvironmentObject var appViewModel: AppViewModel
     @State private var inputText: String = ""
-    @State private var showingSettings = false
     @State private var showingMentionPicker = false
     @State private var mentionFilter: String = ""
     @State private var selectedMentionIndex: Int = 0
@@ -295,46 +299,12 @@ struct AIPanel: View {
                     .buttonStyle(.plain)
                     .disabled(inputText.isEmpty || viewModel.isProcessing)
                 }
-                
-                // Bottom toolbar
-                HStack(spacing: 16) {
-                    // Attachment button
-                    Button(action: {}) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "paperclip")
-                                .font(.system(size: 14))
-                            Image(systemName: "chevron.down")
-                                .font(.system(size: 8))
-                        }
-                        .foregroundColor(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                    
-                    Spacer()
-                    
-                    // Right side icons
-                    HStack(spacing: 12) {
-                        Button(action: {}) {
-                            Image(systemName: "slider.horizontal.3")
-                                .font(.system(size: 14))
-                                .foregroundColor(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                        
-                        Button(action: { showingSettings.toggle() }) {
-                            Image(systemName: "gearshape")
-                                .font(.system(size: 14))
-                                .foregroundColor(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 16)
         }
         .background(Color(NSColor.windowBackgroundColor))
-        .sheet(isPresented: $showingSettings) {
+        .sheet(isPresented: $viewModel.showingSettings) {
             AISettingsView(aiService: viewModel.aiService)
         }
     }
