@@ -451,20 +451,130 @@ struct AIPanel: View {
 // MARK: - Message View
 struct MessageView: View {
     let message: ChatMessage
+    private let parser = MessageParser()
     
     var body: some View {
+        let parsed = parser.parse(message.content)
+        
         VStack(alignment: .leading, spacing: 6) {
             Text(message.role == .user ? "You" : "Assistant")
                 .font(.system(size: 12, weight: .medium))
                 .foregroundColor(.secondary)
             
-            Text(message.content)
-                .font(.system(size: 13))
-                .foregroundColor(.primary)
-                .textSelection(.enabled)
-                .lineSpacing(3)
+            // Render parsed blocks
+            VStack(alignment: .leading, spacing: 12) {
+                ForEach(parsed.blocks) { block in
+                    switch block {
+                    case .text(let content):
+                        Text(LocalizedStringKey(content))
+                            .font(.system(size: 13))
+                            .foregroundColor(.primary)
+                            .textSelection(.enabled)
+                            .lineSpacing(3)
+                    case .code(let language, let code):
+                        CodeBlockView(language: language, code: code)
+                    }
+                }
+            }
+            
+            // References section
+            if !parsed.references.isEmpty {
+                Divider()
+                    .padding(.vertical, 8)
+                
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("References")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.secondary)
+                    
+                    ForEach(Array(parsed.references.enumerated()), id: \.offset) { index, url in
+                        ReferenceView(number: index + 1, url: url)
+                    }
+                }
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+// MARK: - Code Block View
+struct CodeBlockView: View {
+    let language: String?
+    let code: String
+    @State private var showCopied = false
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Header with language and copy button
+            HStack {
+                if let lang = language {
+                    Text(lang)
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+                
+                Button(action: copyCode) {
+                    HStack(spacing: 4) {
+                        Image(systemName: showCopied ? "checkmark" : "doc.on.doc")
+                            .font(.system(size: 11))
+                        Text(showCopied ? "Copied" : "Copy")
+                            .font(.system(size: 11))
+                    }
+                    .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
+            
+            // Code content
+            ScrollView(.horizontal, showsIndicators: true) {
+                Text(code)
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundColor(.primary)
+                    .textSelection(.enabled)
+                    .padding(12)
+            }
+            .background(Color(NSColor.controlBackgroundColor))
+        }
+        .cornerRadius(6)
+        .overlay(
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(Color(NSColor.separatorColor), lineWidth: 1)
+        )
+    }
+    
+    private func copyCode() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(code, forType: .string)
+        showCopied = true
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            showCopied = false
+        }
+    }
+}
+
+// MARK: - Reference View
+struct ReferenceView: View {
+    let number: Int
+    let url: String
+    
+    var body: some View {
+        HStack(alignment: .top, spacing: 6) {
+            Text("[\(number)]")
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundColor(.secondary)
+            
+            Link(url, destination: URL(string: url) ?? URL(string: "about:blank")!)
+                .font(.system(size: 11))
+                .foregroundColor(.blue)
+                .lineLimit(1)
+                .truncationMode(.middle)
+        }
     }
 }
 
