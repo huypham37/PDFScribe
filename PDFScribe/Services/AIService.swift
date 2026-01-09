@@ -42,9 +42,26 @@ class AIService: ObservableObject {
     weak var toolCallHandler: ToolCallHandler?
     weak var fileService: FileService?
     
+    // Current session ID (our own UUID, not provider-specific)
+    private(set) var currentSessionId: String?
+    
     init() {
         loadAPIKey()
         updateStrategy()
+    }
+    
+    func getCurrentSessionId() -> String? {
+        return currentSessionId
+    }
+    
+    func setCurrentSessionId(_ sessionId: String?) {
+        self.currentSessionId = sessionId
+    }
+    
+    /// Call this when the project root URL becomes available
+    func onProjectLoaded() {
+        print("📱 AIService.onProjectLoaded() called")
+        loadOrCreateSession()
     }
     
     func setToolCallHandler(_ handler: ToolCallHandler) {
@@ -54,23 +71,23 @@ class AIService: ObservableObject {
         }
     }
     
-    func sendMessage(_ message: String, context: AIContext) async throws -> String {
+    func sendMessage(_ message: String, context: AIContext, saveToHistory: Bool = true) async throws -> String {
         guard let strategy = currentStrategy else {
             throw AIError.invalidAPIKey
         }
         
+        // Store user message (only if saveToHistory is true)
+        if saveToHistory, let sessionId = currentSessionId, let fileService = fileService {
+            let userMsg = StoredMessage(role: "user", content: message)
+            fileService.addMessageToSession(sessionId: sessionId, message: userMsg)
+        }
+        
         let response = try await strategy.send(message: message, context: context)
         
-        // Update session's last active time
-        if let sessionId = (strategy as? OpenCodeStrategy)?.getSessionId(),
-           let projectURL = appViewModel?.projectRootURL,
-           let fileService = fileService {
-            
-            var history = fileService.loadChatHistory()
-            if let index = history.sessions.firstIndex(where: { $0.id == sessionId }) {
-                history.sessions[index].lastActive = Date()
-                fileService.saveChatHistory(history)
-            }
+        // Store assistant response (only if saveToHistory is true)
+        if saveToHistory, let sessionId = currentSessionId, let fileService = fileService {
+            let assistantMsg = StoredMessage(role: "assistant", content: response)
+            fileService.addMessageToSession(sessionId: sessionId, message: assistantMsg)
         }
         
         // Update current model/mode in case they changed during session creation
@@ -80,6 +97,8 @@ class AIService: ObservableObject {
     }
     
     private func updateStrategy() {
+        print("📱 AIService.updateStrategy() called - provider: \(provider.rawValue)")
+        
         switch provider {
         case .openai:
             currentStrategy = OpenAIStrategy(apiKey: apiKey)
@@ -87,15 +106,8 @@ class AIService: ObservableObject {
             currentStrategy = AnthropicStrategy(apiKey: apiKey)
         case .opencode:
             let workingDir = appViewModel?.projectRootURL?.path
-            
-            // Try to load existing session ID for this project
-            var initialSessionId: String? = nil
-            if let projectURL = appViewModel?.projectRootURL, let fileService = fileService {
-                initialSessionId = fileService.getMostRecentSessionId(for: projectURL.path)
-                print("Loaded session ID: \(initialSessionId ?? "none") for project: \(projectURL.lastPathComponent)")
-            }
-            
-            let strategy = OpenCodeStrategy(binaryPath: opencodePath, workingDirectory: workingDir, initialSessionId: initialSessionId)
+            print("📱 Creating OpenCodeStrategy - workingDir: \(workingDir ?? "nil")")
+            let strategy = OpenCodeStrategy(binaryPath: opencodePath, workingDirectory: workingDir)
             strategy.toolCallHandler = toolCallHandler
             currentStrategy = strategy
             
@@ -103,41 +115,78 @@ class AIService: ObservableObject {
             Task { @MainActor in
                 isConnecting = true
                 do {
+                    print("🔌 Attempting to connect to OpenCode...")
                     try await strategy.connect()
-                    
-                    // Save the session ID (whether it was resumed or newly created)
-                    if let sessionId = strategy.getSessionId(),
-                       let projectURL = self.appViewModel?.projectRootURL,
-                       let fileService = self.fileService {
-                        
-                        print("💾 Saving session: \(sessionId) for project: \(projectURL.path)")
-                        
-                        let session = ChatSession(
-                            id: sessionId,
-                            projectPath: projectURL.path,
-                            title: "New Session", // Will be updated by auto-naming later
-                            createdAt: Date(),
-                            lastActive: Date()
-                        )
-                        fileService.addOrUpdateSession(session)
-                        print("✅ Session saved successfully")
-                        
-                        // Verify it was saved
-                        let history = fileService.loadChatHistory()
-                        print("📚 History now contains \(history.sessions.count) session(s)")
-                    } else {
-                        print("⚠️ Failed to save session - sessionId: \(strategy.getSessionId() ?? "nil"), projectURL: \(self.appViewModel?.projectRootURL?.path ?? "nil"), fileService: \(self.fileService != nil ? "exists" : "nil")")
-                    }
-                    
+                    print("✅ OpenCode connected successfully")
                     updateAvailableModelsAndModes()
                 } catch {
-                    print("Failed to proactively connect to OpenCode: \(error)")
+                    print("❌ Failed to proactively connect to OpenCode: \(error)")
                 }
                 isConnecting = false
             }
         }
         
+        // Don't call loadOrCreateSession() here - it's called when project is set
         updateAvailableModelsAndModes()
+    }
+    
+    private func loadOrCreateSession() {
+        print("📱 loadOrCreateSession() called")
+        print("   - appViewModel?.projectRootURL: \(appViewModel?.projectRootURL?.path ?? "nil")")
+        print("   - fileService: \(fileService != nil ? "exists" : "nil")")
+        
+        guard let projectURL = appViewModel?.projectRootURL,
+              let fileService = fileService else {
+            print("⚠️ Cannot load/create session: projectURL=\(appViewModel?.projectRootURL?.path ?? "nil"), fileService=\(fileService != nil ? "exists" : "nil")")
+            return
+        }
+        
+        print("📱 Attempting to load existing session for: \(projectURL.path)")
+        
+        // Try to load existing session
+        if let existingSession = fileService.getMostRecentSession(for: projectURL.path) {
+            currentSessionId = existingSession.id
+            print("📂 Loaded existing session: \(existingSession.id) with \(existingSession.messages.count) messages")
+        } else {
+            // Create new session
+            let newSessionId = UUID().uuidString
+            print("✨ Creating new session: \(newSessionId)")
+            let newSession = ChatSession(
+                id: newSessionId,
+                projectPath: projectURL.path,
+                title: "New Session",
+                messages: [],
+                provider: provider.rawValue.lowercased()
+            )
+            print("💾 Calling fileService.addOrUpdateSession()")
+            fileService.addOrUpdateSession(newSession)
+            currentSessionId = newSessionId
+            print("✅ New session created and saved: \(newSessionId)")
+        }
+    }
+    
+    func createNewSession() {
+        guard let projectURL = appViewModel?.projectRootURL,
+              let fileService = fileService else {
+            return
+        }
+        
+        let newSessionId = UUID().uuidString
+        let newSession = ChatSession(
+            id: newSessionId,
+            projectPath: projectURL.path,
+            title: "New Session",
+            messages: [],
+            provider: provider.rawValue.lowercased()
+        )
+        fileService.addOrUpdateSession(newSession)
+        currentSessionId = newSessionId
+        print("✨ Created new session: \(newSessionId)")
+    }
+    
+    func loadSession(_ session: ChatSession) -> [StoredMessage] {
+        currentSessionId = session.id
+        return session.messages
     }
     
     private func updateAvailableModelsAndModes() {

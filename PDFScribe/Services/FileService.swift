@@ -95,5 +95,30 @@ class FileService: ObservableObject {
         }
         saveChatHistory(history)
     }
+    
+    func addMessageToSession(sessionId: String, message: StoredMessage) {
+        var history = loadChatHistory()
+        guard let index = history.sessions.firstIndex(where: { $0.id == sessionId }) else {
+            print("⚠️ FileService: Session \(sessionId) not found when adding message")
+            return
+        }
+        
+        history.sessions[index].messages.append(message)
+        history.sessions[index].lastActive = Date()
+        saveChatHistory(history)
+    }
+    
+    func getSessionMessages(sessionId: String) -> [StoredMessage] {
+        let history = loadChatHistory()
+        return history.sessions.first(where: { $0.id == sessionId })?.messages ?? []
+    }
+    
+    func getMostRecentSession(for projectPath: String) -> ChatSession? {
+        let history = loadChatHistory()
+        return history.sessions
+            .filter { $0.projectPath == projectPath }
+            .sorted { $0.lastActive > $1.lastActive }
+            .first
+    }
 }
 

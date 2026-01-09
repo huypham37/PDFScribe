@@ -134,6 +134,10 @@ struct MainSplitView: View {
         guard panel.runModal() == .OK, let url = panel.url else { return }
         
         appViewModel.loadProject(url: url)
+        print("📁 Opened project folder: \(url.path)")
+        
+        // Initialize session for this project
+        aiViewModel.aiService.onProjectLoaded()
     }
     
     private func openPDF() {
@@ -175,6 +179,16 @@ struct MainSplitView: View {
         do {
             try pdfViewModel.loadPDF(url: url)
             appViewModel.documentTitle = url.deletingPathExtension().lastPathComponent
+            
+            // Auto-set project root to PDF's parent directory if not already set
+            if appViewModel.projectRootURL == nil {
+                let parentDirectory = url.deletingLastPathComponent()
+                appViewModel.loadProject(url: parentDirectory)
+                print("📁 Auto-set project root to: \(parentDirectory.path)")
+            }
+            
+            // Trigger session loading now that project is set
+            aiViewModel.aiService.onProjectLoaded()
             
             let noteURL = fileService.associateNoteWithPDF(pdfURL: url)
             if let noteContent = fileService.loadNote(from: noteURL) {

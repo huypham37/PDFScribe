@@ -11,8 +11,7 @@ class OpenCodeStrategy: AIProviderStrategy {
     private let workingDirectory: String
     private var processManager: ProcessManager?
     private var rpcClient: JSONRPCClient?
-    private var sessionId: String?
-    private var initialSessionId: String? // For resuming existing sessions
+    private var sessionId: String? // OpenCode's internal session ID (not used for our persistence)
     private var isInitialized = false
     private var accumulatedResponse = ""
     private var availableModelsList: [AIModel] = []
@@ -22,18 +21,9 @@ class OpenCodeStrategy: AIProviderStrategy {
     private var activeDelegationId: String? = nil  // Track when main agent delegates to sub-agent
     weak var toolCallHandler: ToolCallHandler?
     
-    init(binaryPath: String, workingDirectory: String? = nil, initialSessionId: String? = nil) {
+    init(binaryPath: String, workingDirectory: String? = nil) {
         self.binaryPath = binaryPath
         self.workingDirectory = workingDirectory ?? FileManager.default.homeDirectoryForCurrentUser.path
-        self.initialSessionId = initialSessionId
-    }
-    
-    func setInitialSessionId(_ sessionId: String?) {
-        self.initialSessionId = sessionId
-    }
-    
-    func getSessionId() -> String? {
-        return sessionId
     }
     
     func connect() async throws {
@@ -122,16 +112,10 @@ class OpenCodeStrategy: AIProviderStrategy {
             throw AIError.serverError("Client not initialized")
         }
         
-        var params: [String: Any] = [
+        let params: [String: Any] = [
             "cwd": workingDirectory,
             "mcpServers": []
         ]
-        
-        // If we have an initial session ID, try to resume that session
-        if let initialSessionId = initialSessionId {
-            print("Attempting to resume session: \(initialSessionId)")
-            params["sessionId"] = initialSessionId
-        }
         
         let (requestId, requestData) = try rpcClient.createRequest(method: "session/new", params: params)
         try processManager.write(requestData)

@@ -19,6 +19,36 @@ class AIViewModel: ObservableObject, ToolCallHandler {
     init(aiService: AIService) {
         self.aiService = aiService
         aiService.setToolCallHandler(self)
+        loadCurrentSessionMessages()
+    }
+    
+    func loadCurrentSessionMessages() {
+        print("🔄 AIPanel.loadCurrentSessionMessages() called")
+        print("   - aiService.getCurrentSessionId(): \(aiService.getCurrentSessionId() ?? "nil")")
+        print("   - fileService: \(fileService != nil ? "exists" : "nil")")
+        
+        guard let sessionId = aiService.getCurrentSessionId(),
+              let fileService = fileService else {
+            print("⚠️ Cannot load messages: sessionId=\(aiService.getCurrentSessionId() ?? "nil"), fileService=\(fileService != nil ? "exists" : "nil")")
+            return
+        }
+        
+        print("📥 Loading messages for session: \(sessionId)")
+        let storedMessages = fileService.getSessionMessages(sessionId: sessionId)
+        print("📥 Found \(storedMessages.count) stored messages")
+        
+        messages = storedMessages.map { stored in
+            ChatMessage(
+                role: stored.role == "user" ? .user : .assistant,
+                content: stored.content
+            )
+        }
+        
+        if !messages.isEmpty {
+            print("✅ Loaded \(messages.count) messages from session \(sessionId)")
+        } else {
+            print("ℹ️ No messages to load for session \(sessionId)")
+        }
     }
     
     // Combine messages and tool calls, sorted by timestamp
@@ -107,31 +137,81 @@ class AIViewModel: ObservableObject, ToolCallHandler {
     }
     
     private func generateSessionTitle(userMessage: String, assistantResponse: String) async {
+        print("🏷️ Auto-naming: generateSessionTitle() called")
+        print("   - sessionId: \(aiService.getCurrentSessionId() ?? "nil")")
+        print("   - fileService: \(fileService != nil ? "exists" : "nil")")
+        
         guard let fileService = fileService else {
             print("⚠️ Auto-naming: FileService not available")
             return
         }
         
-        print("🏷️ Auto-naming: Starting title generation...")
+        guard let sessionId = aiService.getCurrentSessionId() else {
+            print("⚠️ Auto-naming: No current session ID")
+            return
+        }
         
-        // Simple title generation: use first few words of user message
-        let words = userMessage.components(separatedBy: .whitespacesAndNewlines)
-            .filter { !$0.isEmpty }
-            .prefix(4)
-        let simpleTitle = words.joined(separator: " ")
-        let cleanTitle = simpleTitle.isEmpty ? "Chat Session" : simpleTitle
+        print("🏷️ Auto-naming: Asking AI for title...")
         
-        print("🏷️ Auto-naming: Generated title: '\(cleanTitle)'")
+        // Prepare a prompt to ask the AI for a concise title
+        let prompt = """
+        Generate a concise title (3-5 words maximum) that summarizes this conversation.
         
-        // Update the session title in storage for sessions that still have default title
+        User asked: "\(userMessage)"
+        
+        Return ONLY the title, nothing else. No quotes, no explanation.
+        """
+        
+        // Create minimal context for this meta-request
+        let context = AIContext(
+            messages: [],
+            currentFile: nil,
+            currentFileContent: nil,
+            selection: nil,
+            pdfURL: nil,
+            pdfSelection: nil,
+            pdfPage: nil,
+            referencedFiles: []
+        )
+        
+        var cleanTitle: String
+        
+        do {
+            // Call AI with saveToHistory: false to avoid polluting chat history
+            let response = try await aiService.sendMessage(prompt, context: context, saveToHistory: false)
+            
+            // Clean up the response
+            cleanTitle = response
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
+                .components(separatedBy: .newlines).first ?? response
+            
+            // Limit length
+            let words = cleanTitle.components(separatedBy: .whitespaces).prefix(6)
+            cleanTitle = words.joined(separator: " ")
+            
+            if cleanTitle.isEmpty {
+                cleanTitle = "Chat Session"
+            }
+            
+            print("🏷️ Auto-naming: AI generated title: '\(cleanTitle)'")
+            
+        } catch {
+            // Fallback to simple title if AI call fails
+            print("⚠️ Auto-naming: AI call failed, using fallback: \(error)")
+            let words = userMessage.components(separatedBy: .whitespacesAndNewlines)
+                .filter { !$0.isEmpty }
+                .prefix(4)
+            cleanTitle = words.joined(separator: " ")
+            if cleanTitle.isEmpty {
+                cleanTitle = "Chat Session"
+            }
+        }
+        
+        // Update the session title in storage
         var history = fileService.loadChatHistory()
         
-        print("🏷️ Auto-naming: Loaded \(history.sessions.count) sessions from history")
-        
-        // Find the most recent session that still has "New Session" title
-        if let sessionIndex = history.sessions.indices.reversed().first(where: { index in
-            history.sessions[index].title == "New Session"
-        }) {
+        if let sessionIndex = history.sessions.firstIndex(where: { $0.id == sessionId }) {
             let oldTitle = history.sessions[sessionIndex].title
             history.sessions[sessionIndex].title = cleanTitle
             fileService.saveChatHistory(history)
@@ -139,16 +219,22 @@ class AIViewModel: ObservableObject, ToolCallHandler {
             // Update the UI
             currentSessionTitle = cleanTitle
             
-            print("✅ Auto-naming: Updated session '\(history.sessions[sessionIndex].id)' from '\(oldTitle)' to '\(cleanTitle)'")
+            print("✅ Auto-naming: Session '\(oldTitle)' renamed to '\(cleanTitle)'")
         } else {
-            print("⚠️ Auto-naming: No session with 'New Session' title found")
-            print("   Available sessions: \(history.sessions.map { "\($0.title) (\($0.id))" }.joined(separator: ", "))")
+            print("⚠️ Auto-naming: Could not find current session in history")
         }
     }
     
     func newThread() {
         messages.removeAll()
         errorMessage = nil
+        toolCalls.removeAll()
+        currentSessionTitle = "New Conversation"
+        
+        // Create new session in AIService
+        aiService.createNewSession()
+        
+        print("🆕 Started new conversation thread")
     }
 }
 
