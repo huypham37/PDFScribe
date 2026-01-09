@@ -3,7 +3,6 @@ import SwiftUI
 struct AgentModeSelector: View {
     @Binding var selectedMode: AgentMode
     let availableModes: [AgentMode]
-    @FocusState private var isFocused: Bool
     
     var body: some View {
         HStack {
@@ -21,19 +20,6 @@ struct AgentModeSelector: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .focusable()
-        .focused($isFocused)
-        .onKeyPress(.tab) {
-            cycleMode(forward: true)
-            return .handled
-        }
-        .onKeyPress(keys: [.tab], phases: .down) { press in
-            if press.modifiers.contains(.shift) {
-                cycleMode(forward: false)
-                return .handled
-            }
-            return .ignored
-        }
     }
     
     private func cycleMode(forward: Bool) {
