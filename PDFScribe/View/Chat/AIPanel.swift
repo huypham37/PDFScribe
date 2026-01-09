@@ -8,6 +8,8 @@ class AIViewModel: ObservableObject, ToolCallHandler {
     @Published var isProcessing: Bool = false
     @Published var errorMessage: String?
     @Published var mentionedFiles: [URL] = []
+    @Published var showingSettings = false
+    @Published var currentSessionTitle: String = "New Conversation"
     
     let aiService: AIService
     weak var editorViewModel: EditorViewModel?
@@ -105,11 +107,12 @@ class AIViewModel: ObservableObject, ToolCallHandler {
     }
     
     private func generateSessionTitle(userMessage: String, assistantResponse: String) async {
-        guard let fileService = fileService else { return }
+        guard let fileService = fileService else {
+            print("⚠️ Auto-naming: FileService not available")
+            return
+        }
         
-        // Get the current project path - we need access to AppViewModel through a different route
-        // For now, we'll use a simple title generation based on the user message
-        // TODO: Could be improved by accessing AppViewModel directly
+        print("🏷️ Auto-naming: Starting title generation...")
         
         // Simple title generation: use first few words of user message
         let words = userMessage.components(separatedBy: .whitespacesAndNewlines)
@@ -118,16 +121,28 @@ class AIViewModel: ObservableObject, ToolCallHandler {
         let simpleTitle = words.joined(separator: " ")
         let cleanTitle = simpleTitle.isEmpty ? "Chat Session" : simpleTitle
         
+        print("🏷️ Auto-naming: Generated title: '\(cleanTitle)'")
+        
         // Update the session title in storage for sessions that still have default title
         var history = fileService.loadChatHistory()
+        
+        print("🏷️ Auto-naming: Loaded \(history.sessions.count) sessions from history")
         
         // Find the most recent session that still has "New Session" title
         if let sessionIndex = history.sessions.indices.reversed().first(where: { index in
             history.sessions[index].title == "New Session"
         }) {
+            let oldTitle = history.sessions[sessionIndex].title
             history.sessions[sessionIndex].title = cleanTitle
             fileService.saveChatHistory(history)
-            print("Auto-generated session title: \(cleanTitle)")
+            
+            // Update the UI
+            currentSessionTitle = cleanTitle
+            
+            print("✅ Auto-naming: Updated session '\(history.sessions[sessionIndex].id)' from '\(oldTitle)' to '\(cleanTitle)'")
+        } else {
+            print("⚠️ Auto-naming: No session with 'New Session' title found")
+            print("   Available sessions: \(history.sessions.map { "\($0.title) (\($0.id))" }.joined(separator: ", "))")
         }
     }
     
@@ -214,7 +229,7 @@ struct AIPanel: View {
                 // Center: Title with dropdown
                 Button(action: {}) {
                     HStack(spacing: 4) {
-                        Text("New Conversation")
+                        Text(viewModel.currentSessionTitle)
                             .font(.system(size: 13))
                             .foregroundColor(.primary)
                         Image(systemName: "chevron.down")
