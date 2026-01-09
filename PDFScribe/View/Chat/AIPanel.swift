@@ -480,40 +480,6 @@ struct AIPanel: View {
                     .buttonStyle(.plain)
                     .disabled(inputText.isEmpty || viewModel.isProcessing)
                 }
-                
-                // Bottom toolbar
-                HStack(spacing: 16) {
-                    // Attachment button
-                    Button(action: {}) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "paperclip")
-                                .font(.system(size: 14))
-                            Image(systemName: "chevron.down")
-                                .font(.system(size: 8))
-                        }
-                        .foregroundColor(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                    
-                    Spacer()
-                    
-                    // Right side icons
-                    HStack(spacing: 12) {
-                        Button(action: {}) {
-                            Image(systemName: "slider.horizontal.3")
-                                .font(.system(size: 14))
-                                .foregroundColor(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                        
-                        Button(action: { showingSettings.toggle() }) {
-                            Image(systemName: "gearshape")
-                                .font(.system(size: 14))
-                                .foregroundColor(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 16)

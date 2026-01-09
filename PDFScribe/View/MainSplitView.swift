@@ -27,6 +27,7 @@ struct MainSplitView: View {
     @State private var errorMessage = ""
     @State private var pdfViewInstance: PDFView?
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
+    @State private var showingAISettings = false
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
@@ -79,6 +80,12 @@ struct MainSplitView: View {
                 .keyboardShortcut("s", modifiers: .command)
                 .help("Save Note (⌘S)")
             }
+            ToolbarItem(placement: .navigation) {
+                Button(action: { showingAISettings.toggle() }) {
+                    Label("AI Settings", systemImage: "gearshape")
+                }
+                .help("AI Settings")
+            }
         }
         .onReceive(pdfViewModel.$pendingQuote) { selection in
             if let selection = selection, !selection.text.isEmpty {
@@ -93,6 +100,9 @@ struct MainSplitView: View {
             Button("OK", role: .cancel) { }
         } message: {
             Text(errorMessage)
+        }
+        .sheet(isPresented: $showingAISettings) {
+            AISettingsView(aiService: aiViewModel.aiService)
         }
     }
     
