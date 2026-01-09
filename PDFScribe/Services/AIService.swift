@@ -110,6 +110,8 @@ class AIService: ObservableObject {
                        let projectURL = self.appViewModel?.projectRootURL,
                        let fileService = self.fileService {
                         
+                        print("💾 Saving session: \(sessionId) for project: \(projectURL.path)")
+                        
                         let session = ChatSession(
                             id: sessionId,
                             projectPath: projectURL.path,
@@ -118,7 +120,13 @@ class AIService: ObservableObject {
                             lastActive: Date()
                         )
                         fileService.addOrUpdateSession(session)
-                        print("Saved session: \(sessionId)")
+                        print("✅ Session saved successfully")
+                        
+                        // Verify it was saved
+                        let history = fileService.loadChatHistory()
+                        print("📚 History now contains \(history.sessions.count) session(s)")
+                    } else {
+                        print("⚠️ Failed to save session - sessionId: \(strategy.getSessionId() ?? "nil"), projectURL: \(self.appViewModel?.projectRootURL?.path ?? "nil"), fileService: \(self.fileService != nil ? "exists" : "nil")")
                     }
                     
                     updateAvailableModelsAndModes()

@@ -63,7 +63,7 @@ class OpenCodeStrategy: AIProviderStrategy {
             try await createSession()
         }
         
-        print("[TIMING] Initialization/session took: \(Date().timeIntervalSince(sendStartTime))s")
+        // Removed verbose timing log
         
         guard let sessionId = sessionId else {
             throw AIError.serverError("No active session")
@@ -291,17 +291,12 @@ class OpenCodeStrategy: AIProviderStrategy {
         
         accumulatedResponse = ""
         
-        let promptStartTime = Date()
-        print("[TIMING] Sending session/prompt request...")
         let (requestId, requestData) = try rpcClient.createRequest(method: "session/prompt", params: params)
         try processManager.write(requestData)
-        print("[TIMING] Request sent, waiting for response...")
         
         let response = try await rpcClient.awaitResponse(forRequestId: requestId)
-        let promptDuration = Date().timeIntervalSince(promptStartTime)
         
-        print("[TIMING] session/prompt completed in \(promptDuration)s")
-        print("session/prompt response received - error: \(response.error?.message ?? "none"), accumulated: \(accumulatedResponse.count) chars")
+        // Removed verbose logs
         
         guard response.error == nil else {
             let errorMsg = response.error?.message ?? "Unknown error"
@@ -320,7 +315,7 @@ class OpenCodeStrategy: AIProviderStrategy {
         
         guard notification.method == "session/update" else { return }
         
-        print("[NOTIFICATION] Received update type: \(sessionUpdate)")
+        // Removed verbose notification log
         switch sessionUpdate {
         case "agent_message_chunk":
             if let content = update["content"] as? [String: Any],

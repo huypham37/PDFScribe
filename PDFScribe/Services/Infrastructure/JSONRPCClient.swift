@@ -144,11 +144,8 @@ class JSONRPCClient {
     
     private func handleMessage(_ data: Data) {
         guard let jsonString = String(data: data, encoding: .utf8) else {
-            print("[JSONRPC] Failed to decode message as UTF-8")
             return
         }
-        
-        print("[JSONRPC] Received: \(jsonString.prefix(200))...")
         
         let decoder = JSONDecoder()
         
@@ -167,11 +164,8 @@ class JSONRPCClient {
         // Try to decode as notification (has method but no id)
         if let notification = try? decoder.decode(JSONRPCNotification.self, from: data),
            !notification.method.isEmpty {
-            print("[JSONRPC] Dispatching notification: \(notification.method)")
             notificationHandler?(notification)
             return
         }
-        
-        print("[JSONRPC] Failed to decode message as response or notification")
     }
 }

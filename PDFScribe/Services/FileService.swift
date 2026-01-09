@@ -64,11 +64,13 @@ class FileService: ObservableObject {
     }
     
     func saveChatHistory(_ history: ChatHistory) {
+        print("💾 FileService: Saving history with \(history.sessions.count) session(s) to \(historyURL.path)")
         do {
             let data = try JSONEncoder().encode(history)
             try data.write(to: historyURL)
+            print("✅ FileService: History saved successfully")
         } catch {
-            print("Failed to save chat history: \(error)")
+            print("❌ FileService: Failed to save chat history: \(error)")
         }
     }
     
@@ -82,10 +84,13 @@ class FileService: ObservableObject {
     }
     
     func addOrUpdateSession(_ session: ChatSession) {
+        print("📝 FileService: Adding/updating session \(session.id) with title '\(session.title)'")
         var history = loadChatHistory()
         if let index = history.sessions.firstIndex(where: { $0.id == session.id }) {
+            print("   Updating existing session at index \(index)")
             history.sessions[index] = session
         } else {
+            print("   Adding new session")
             history.sessions.append(session)
         }
         saveChatHistory(history)
