@@ -28,7 +28,6 @@ class AIViewModel: ObservableObject, ToolCallHandler {
     func fetchRecentSessions() {
         guard let projectURL = appViewModel?.projectRootURL,
               let fileService = fileService else {
-            print("⚠️ Cannot fetch sessions: projectURL or fileService not available")
             recentSessions = []
             return
         }

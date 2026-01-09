@@ -29,6 +29,7 @@ struct PDFScribeApp: App {
         Task { @MainActor in
             service.appViewModel = appVM
             service.fileService = fileSvc
+            aiVM.appViewModel = appVM
             aiVM.editorViewModel = editorVM
             aiVM.pdfViewModel = pdfVM
             aiVM.fileService = fileSvc
