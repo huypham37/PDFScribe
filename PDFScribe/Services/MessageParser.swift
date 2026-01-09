@@ -87,8 +87,32 @@ class MessageParser {
         return blocks
     }
     
+    private func convertMarkdownHeaders(_ text: String) -> String {
+        var result = text
+        
+        // Convert ### headers to bold (SwiftUI Text doesn't support ### syntax)
+        // Match: ### Header Text at start of line
+        let headerPattern = "^(#{1,6})\\s+(.+)$"
+        guard let regex = try? NSRegularExpression(pattern: headerPattern, options: [.anchorsMatchLines]) else {
+            return result
+        }
+        
+        let matches = regex.matches(in: result, options: [], range: NSRange(result.startIndex..., in: result))
+        for match in matches.reversed() {
+            if let _ = Range(match.range(at: 1), in: result),
+               let textRange = Range(match.range(at: 2), in: result),
+               let fullRange = Range(match.range, in: result) {
+                let headerText = String(result[textRange])
+                // Replace with bold markdown syntax that SwiftUI Text supports
+                result.replaceSubrange(fullRange, with: "**\(headerText)**")
+            }
+        }
+        
+        return result
+    }
+    
     private func extractCitations(from text: String, references: inout [String], referenceMap: inout [String: Int]) -> String {
-        var processedText = text
+        var processedText = convertMarkdownHeaders(text)
         
         // Pattern to match markdown links: [text](url) or bare URLs
         let patterns = [
@@ -127,13 +151,14 @@ class MessageParser {
                     if let existing = referenceMap[url] {
                         citationNumber = existing
                     } else {
+                        citationNumber = references.count + 1  // Fix: Start at [1], not [0]
                         references.append(url)
-                        citationNumber = references.count
                         referenceMap[url] = citationNumber
                     }
                     
                     // Replace with citation
-                    let replacement = linkText != nil ? "\(linkText!) [\(citationNumber)]" : "[\(citationNumber)]"
+                    // Add leading space for bare URLs to prevent text concatenation
+                    let replacement = linkText != nil ? "\(linkText!) [\(citationNumber)]" : " [\(citationNumber)]"
                     processedText.replaceSubrange(matchRange, with: replacement)
                 }
             }
