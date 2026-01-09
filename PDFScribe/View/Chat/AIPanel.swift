@@ -11,6 +11,8 @@ class AIViewModel: ObservableObject, ToolCallHandler {
     @Published var showingSettings = false
     @Published var currentSessionTitle: String = "New Conversation"
     @Published var recentSessions: [ChatSession] = []
+    @Published var selectedMode: AgentMode = .build
+    @Published var availableModes: [AgentMode] = []
     
     let aiService: AIService
     weak var editorViewModel: EditorViewModel?
@@ -20,10 +22,12 @@ class AIViewModel: ObservableObject, ToolCallHandler {
     
     init(aiService: AIService) {
         self.aiService = aiService
-        aiService.setToolCallHandler(self)
-        loadCurrentSessionMessages()
-        // Don't fetch sessions here - dependencies not yet injected
+        
+        // Load available agent modes from OpenCode config
+        self.availableModes = OpenCodeConfigLoader.shared.loadPrimaryAgents()
+        print("📋 Loaded \(availableModes.count) agent modes: \(availableModes.map { $0.rawValue }.joined(separator: ", "))")
     }
+
     
     func fetchRecentSessions() {
         guard let projectURL = appViewModel?.projectRootURL,
@@ -276,6 +280,28 @@ class AIViewModel: ObservableObject, ToolCallHandler {
         
         print("🆕 Started new conversation thread")
     }
+    
+    func changeAgentMode(to mode: AgentMode) async {
+        guard aiService.provider == .opencode else {
+            print("⚠️ Agent mode only supported for OpenCode provider")
+            return
+        }
+        
+        // Map AgentMode to OpenCode's AIMode
+        let openCodeMode = AIMode(
+            id: mode.agentID,
+            name: mode.rawValue,
+            description: mode.description
+        )
+        
+        do {
+            try await aiService.selectMode(openCodeMode)
+            print("✅ Changed agent mode to: \(mode.rawValue)")
+        } catch {
+            print("❌ Failed to change agent mode: \(error)")
+            errorMessage = "Failed to change agent mode: \(error.localizedDescription)"
+        }
+    }
 }
 
 struct ChatMessage: Identifiable {
@@ -438,7 +464,10 @@ struct AIPanel: View {
             Spacer()
             
             // Bottom section
-            VStack(spacing: 12) {
+            VStack(spacing: 0) {
+                // Agent mode selector
+                AgentModeSelector(selectedMode: $viewModel.selectedMode, availableModes: viewModel.availableModes)
+                
                 // Chat input field with mention support
                 HStack(alignment: .bottom, spacing: 8) {
                     ZStack(alignment: .bottomLeading) {
@@ -481,6 +510,11 @@ struct AIPanel: View {
         .background(Color(NSColor.windowBackgroundColor))
         .sheet(isPresented: $showingSettings) {
             AISettingsView(aiService: viewModel.aiService)
+        }
+        .onChange(of: viewModel.selectedMode) { _, newMode in
+            Task {
+                await viewModel.changeAgentMode(to: newMode)
+            }
         }
     }
     
