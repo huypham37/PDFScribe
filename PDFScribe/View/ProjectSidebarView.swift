@@ -6,6 +6,7 @@ struct ProjectSidebarView: View {
     @EnvironmentObject var editorViewModel: EditorViewModel
     @EnvironmentObject var aiViewModel: AIViewModel
     @EnvironmentObject var fileService: FileService
+    @Binding var columnVisibility: NavigationSplitViewVisibility
     
     var body: some View {
         Group {
@@ -16,16 +17,19 @@ struct ProjectSidebarView: View {
             }
         }
         .toolbar {
-            ToolbarItemGroup(placement: .automatic) {
-                Button(action: { appViewModel.sidebarMode = .files }) {
-                    Label("Files", systemImage: "list.bullet")
+            // Only show Files and AI buttons when sidebar is visible
+            if columnVisibility != .detailOnly {
+                ToolbarItemGroup(placement: .automatic) {
+                    Button(action: { appViewModel.sidebarMode = .files }) {
+                        Label("Files", systemImage: "list.bullet")
+                    }
+                    .help("Files")
+                    
+                    Button(action: { appViewModel.sidebarMode = .ai }) {
+                        Label("AI", systemImage: "sparkles")
+                    }
+                    .help("AI Assistant")
                 }
-                .help("Files")
-                
-                Button(action: { appViewModel.sidebarMode = .ai }) {
-                    Label("AI", systemImage: "sparkles")
-                }
-                .help("AI Assistant")
             }
         }
     }
