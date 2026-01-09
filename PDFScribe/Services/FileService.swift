@@ -31,9 +31,64 @@ class FileService: ObservableObject {
         
         saveDebouncer?.cancel()
         saveDebouncer = Just(content)
-            .delay(for: .seconds(debounceInterval), scheduler: RunLoop.main)
-            .sink { [weak self] content in
-                try? self?.saveNote(content: content, to: url)
-            }
+        .delay(for: .seconds(debounceInterval), scheduler: RunLoop.main)
+        .sink { [weak self] content in
+            try? self?.saveNote(content: content, to: url)
+        }
+    }
+    
+    // MARK: - Centralized Session History
+    
+    private var historyURL: URL {
+        let folder = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".local/share/pdfscribe", isDirectory: true)
+        
+        // Ensure directory exists
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        
+        return folder.appendingPathComponent("history.json")
+    }
+    
+    func loadChatHistory() -> ChatHistory {
+        guard FileManager.default.fileExists(atPath: historyURL.path) else {
+            return ChatHistory(sessions: [])
+        }
+        
+        do {
+            let data = try Data(contentsOf: historyURL)
+            return try JSONDecoder().decode(ChatHistory.self, from: data)
+        } catch {
+            print("Failed to load chat history: \(error)")
+            return ChatHistory(sessions: [])
+        }
+    }
+    
+    func saveChatHistory(_ history: ChatHistory) {
+        do {
+            let data = try JSONEncoder().encode(history)
+            try data.write(to: historyURL)
+        } catch {
+            print("Failed to save chat history: \(error)")
+        }
+    }
+    
+    func getMostRecentSessionId(for projectPath: String) -> String? {
+        let history = loadChatHistory()
+        return history.sessions
+            .filter { $0.projectPath == projectPath }
+            .sorted { $0.lastActive > $1.lastActive }
+            .first?
+            .id
+    }
+    
+    func addOrUpdateSession(_ session: ChatSession) {
+        var history = loadChatHistory()
+        if let index = history.sessions.firstIndex(where: { $0.id == session.id }) {
+            history.sessions[index] = session
+        } else {
+            history.sessions.append(session)
+        }
+        saveChatHistory(history)
     }
 }
+

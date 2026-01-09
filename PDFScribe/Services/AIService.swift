@@ -40,6 +40,7 @@ class AIService: ObservableObject {
     private var currentStrategy: AIProviderStrategy?
     weak var appViewModel: AppViewModel?
     weak var toolCallHandler: ToolCallHandler?
+    weak var fileService: FileService?
     
     init() {
         loadAPIKey()
@@ -60,6 +61,18 @@ class AIService: ObservableObject {
         
         let response = try await strategy.send(message: message, context: context)
         
+        // Update session's last active time
+        if let sessionId = (strategy as? OpenCodeStrategy)?.getSessionId(),
+           let projectURL = appViewModel?.projectRootURL,
+           let fileService = fileService {
+            
+            var history = fileService.loadChatHistory()
+            if let index = history.sessions.firstIndex(where: { $0.id == sessionId }) {
+                history.sessions[index].lastActive = Date()
+                fileService.saveChatHistory(history)
+            }
+        }
+        
         // Update current model/mode in case they changed during session creation
         updateAvailableModelsAndModes()
         
@@ -74,15 +87,40 @@ class AIService: ObservableObject {
             currentStrategy = AnthropicStrategy(apiKey: apiKey)
         case .opencode:
             let workingDir = appViewModel?.projectRootURL?.path
-            let strategy = OpenCodeStrategy(binaryPath: opencodePath, workingDirectory: workingDir)
+            
+            // Try to load existing session ID for this project
+            var initialSessionId: String? = nil
+            if let projectURL = appViewModel?.projectRootURL, let fileService = fileService {
+                initialSessionId = fileService.getMostRecentSessionId(for: projectURL.path)
+                print("Loaded session ID: \(initialSessionId ?? "none") for project: \(projectURL.lastPathComponent)")
+            }
+            
+            let strategy = OpenCodeStrategy(binaryPath: opencodePath, workingDirectory: workingDir, initialSessionId: initialSessionId)
             strategy.toolCallHandler = toolCallHandler
             currentStrategy = strategy
             
             // Proactively connect to OpenCode when switching to this provider
-            Task {
+            Task { @MainActor in
                 isConnecting = true
                 do {
                     try await strategy.connect()
+                    
+                    // Save the session ID (whether it was resumed or newly created)
+                    if let sessionId = strategy.getSessionId(),
+                       let projectURL = self.appViewModel?.projectRootURL,
+                       let fileService = self.fileService {
+                        
+                        let session = ChatSession(
+                            id: sessionId,
+                            projectPath: projectURL.path,
+                            title: "New Session", // Will be updated by auto-naming later
+                            createdAt: Date(),
+                            lastActive: Date()
+                        )
+                        fileService.addOrUpdateSession(session)
+                        print("Saved session: \(sessionId)")
+                    }
+                    
                     updateAvailableModelsAndModes()
                 } catch {
                     print("Failed to proactively connect to OpenCode: \(error)")

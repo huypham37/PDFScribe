@@ -28,6 +28,7 @@ struct PDFScribeApp: App {
         // Set cross-references after initialization
         Task { @MainActor in
             service.appViewModel = appVM
+            service.fileService = fileSvc
             aiVM.editorViewModel = editorVM
             aiVM.pdfViewModel = pdfVM
             aiVM.fileService = fileSvc
