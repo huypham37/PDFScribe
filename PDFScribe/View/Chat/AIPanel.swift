@@ -79,6 +79,11 @@ class AIViewModel: ObservableObject, ToolCallHandler {
             let assistantMessage = ChatMessage(role: .assistant, content: response)
             messages.append(assistantMessage)
             
+            // Trigger auto-naming if this is the first exchange
+            if messages.count == 2 { // First user message + first assistant response
+                triggerAutoNaming(userMessage: text, assistantResponse: response)
+            }
+            
             // Clear mentioned files after sending
             mentionedFiles.removeAll()
         } catch AIError.invalidAPIKey {
@@ -90,6 +95,40 @@ class AIViewModel: ObservableObject, ToolCallHandler {
         }
         
         isProcessing = false
+    }
+    
+    private func triggerAutoNaming(userMessage: String, assistantResponse: String) {
+        // Run auto-naming in background to avoid disrupting the main conversation
+        Task {
+            await generateSessionTitle(userMessage: userMessage, assistantResponse: assistantResponse)
+        }
+    }
+    
+    private func generateSessionTitle(userMessage: String, assistantResponse: String) async {
+        guard let fileService = fileService else { return }
+        
+        // Get the current project path - we need access to AppViewModel through a different route
+        // For now, we'll use a simple title generation based on the user message
+        // TODO: Could be improved by accessing AppViewModel directly
+        
+        // Simple title generation: use first few words of user message
+        let words = userMessage.components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .prefix(4)
+        let simpleTitle = words.joined(separator: " ")
+        let cleanTitle = simpleTitle.isEmpty ? "Chat Session" : simpleTitle
+        
+        // Update the session title in storage for sessions that still have default title
+        var history = fileService.loadChatHistory()
+        
+        // Find the most recent session that still has "New Session" title
+        if let sessionIndex = history.sessions.indices.reversed().first(where: { index in
+            history.sessions[index].title == "New Session"
+        }) {
+            history.sessions[sessionIndex].title = cleanTitle
+            fileService.saveChatHistory(history)
+            print("Auto-generated session title: \(cleanTitle)")
+        }
     }
     
     func newThread() {
