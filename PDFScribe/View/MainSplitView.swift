@@ -138,6 +138,9 @@ struct MainSplitView: View {
         
         // Initialize session for this project
         aiViewModel.aiService.onProjectLoaded()
+        
+        // Fetch recent sessions for this project
+        aiViewModel.fetchRecentSessions()
     }
     
     private func openPDF() {
@@ -189,6 +192,9 @@ struct MainSplitView: View {
             
             // Trigger session loading now that project is set
             aiViewModel.aiService.onProjectLoaded()
+            
+            // Fetch recent sessions for this project
+            aiViewModel.fetchRecentSessions()
             
             let noteURL = fileService.associateNoteWithPDF(pdfURL: url)
             if let noteContent = fileService.loadNote(from: noteURL) {
