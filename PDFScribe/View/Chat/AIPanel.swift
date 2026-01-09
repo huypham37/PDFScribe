@@ -15,6 +15,11 @@ class AIViewModel: ObservableObject, ToolCallHandler {
     @Published var availableModes: [AgentMode] = []
     
     let aiService: AIService
+    
+    // Computed property to check if any tool call is actively running
+    var hasActiveToolCalls: Bool {
+        toolCalls.values.contains { $0.status == .inProgress }
+    }
     weak var editorViewModel: EditorViewModel?
     weak var pdfViewModel: PDFViewModel?
     weak var fileService: FileService?
@@ -160,9 +165,14 @@ class AIViewModel: ObservableObject, ToolCallHandler {
             var fullResponse = ""
             
             for try await chunk in stream {
-                fullResponse += chunk
-                // Update the assistant message in place
-                messages[assistantIndex] = ChatMessage(role: .assistant, content: fullResponse)
+                // Implement typewriter effect: add characters progressively
+                for char in chunk {
+                    fullResponse.append(char)
+                    messages[assistantIndex] = ChatMessage(role: .assistant, content: fullResponse)
+                    
+                    // Small delay for smooth typing effect (2ms per character)
+                    try? await Task.sleep(nanoseconds: 2_000_000)
+                }
             }
             
             // Trigger auto-naming if this is the first exchange
@@ -465,8 +475,8 @@ struct AIPanel: View {
                             }
                         }
                         
-                        // Processing indicator (only show if no tool calls are active)
-                        if viewModel.isProcessing && viewModel.toolCalls.isEmpty {
+                        // Processing indicator (only show if no active tool calls)
+                        if viewModel.isProcessing && !viewModel.hasActiveToolCalls {
                             ThinkingIndicator()
                                 .padding(.vertical, 8)
                         }
