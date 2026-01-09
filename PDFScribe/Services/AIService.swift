@@ -71,6 +71,44 @@ class AIService: ObservableObject {
         }
     }
     
+    func sendMessageStream(_ message: String, context: AIContext, saveToHistory: Bool = true) -> AsyncThrowingStream<String, Error> {
+        return AsyncThrowingStream { continuation in
+            Task { @MainActor in
+                guard let strategy = self.currentStrategy else {
+                    continuation.finish(throwing: AIError.invalidAPIKey)
+                    return
+                }
+                
+                // Store user message
+                if saveToHistory, let sessionId = self.currentSessionId, let fileService = self.fileService {
+                    let userMsg = StoredMessage(role: "user", content: message)
+                    fileService.addMessageToSession(sessionId: sessionId, message: userMsg)
+                }
+                
+                var fullResponse = ""
+                let stream = strategy.sendStream(message: message, context: context)
+                
+                do {
+                    for try await chunk in stream {
+                        fullResponse += chunk
+                        continuation.yield(chunk)
+                    }
+                    
+                    // Store assistant response after completion
+                    if saveToHistory, let sessionId = self.currentSessionId, let fileService = self.fileService {
+                        let assistantMsg = StoredMessage(role: "assistant", content: fullResponse)
+                        fileService.addMessageToSession(sessionId: sessionId, message: assistantMsg)
+                    }
+                    
+                    self.updateAvailableModelsAndModes()
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+        }
+    }
+    
     func sendMessage(_ message: String, context: AIContext, saveToHistory: Bool = true) async throws -> String {
         guard let strategy = currentStrategy else {
             throw AIError.invalidAPIKey
@@ -82,18 +120,24 @@ class AIService: ObservableObject {
             fileService.addMessageToSession(sessionId: sessionId, message: userMsg)
         }
         
-        let response = try await strategy.send(message: message, context: context)
+        // Use streaming internally but collect full response
+        var fullResponse = ""
+        let stream = strategy.sendStream(message: message, context: context)
+        
+        for try await chunk in stream {
+            fullResponse += chunk
+        }
         
         // Store assistant response (only if saveToHistory is true)
         if saveToHistory, let sessionId = currentSessionId, let fileService = fileService {
-            let assistantMsg = StoredMessage(role: "assistant", content: response)
+            let assistantMsg = StoredMessage(role: "assistant", content: fullResponse)
             fileService.addMessageToSession(sessionId: sessionId, message: assistantMsg)
         }
         
         // Update current model/mode in case they changed during session creation
         updateAvailableModelsAndModes()
         
-        return response
+        return fullResponse
     }
     
     private func updateStrategy() {

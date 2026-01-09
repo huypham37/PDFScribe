@@ -12,7 +12,7 @@ struct AIContext {
 }
 
 protocol AIProviderStrategy {
-    func send(message: String, context: AIContext) async throws -> String
+    func sendStream(message: String, context: AIContext) -> AsyncThrowingStream<String, Error>
     func availableModels() -> [AIModel]
     func availableModes() -> [AIMode]
     func currentModel() -> AIModel?

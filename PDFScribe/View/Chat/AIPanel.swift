@@ -129,8 +129,13 @@ class AIViewModel: ObservableObject, ToolCallHandler {
         isProcessing = true
         errorMessage = nil
         
+        // Create placeholder for assistant message
+        let assistantMessage = ChatMessage(role: .assistant, content: "")
+        messages.append(assistantMessage)
+        let assistantIndex = messages.count - 1
+        
         do {
-            let aiMessages = messages.map { AIMessage(role: $0.role.rawValue, content: $0.content) }
+            let aiMessages = messages.dropLast().map { AIMessage(role: $0.role.rawValue, content: $0.content) }
             
             // Gather context from editor and PDF
             let currentFile = fileService?.currentNoteURL
@@ -138,33 +143,48 @@ class AIViewModel: ObservableObject, ToolCallHandler {
             let pdfSelection = pdfViewModel?.currentSelection
             
             let context = AIContext(
-                messages: aiMessages,
+                messages: Array(aiMessages),
                 currentFile: currentFile,
                 currentFileContent: currentFileContent,
-                selection: nil, // TODO: Add editor text selection if needed
-                pdfURL: nil, // TODO: Add current PDF URL from pdfViewModel if needed
+                selection: nil,
+                pdfURL: nil,
                 pdfSelection: pdfSelection?.text,
                 pdfPage: pdfSelection?.pageNumber,
                 referencedFiles: mentionedFiles
             )
-            let response = try await aiService.sendMessage(text, context: context)
             
-            let assistantMessage = ChatMessage(role: .assistant, content: response)
-            messages.append(assistantMessage)
+            let stream = aiService.sendMessageStream(text, context: context)
+            var fullResponse = ""
+            
+            for try await chunk in stream {
+                fullResponse += chunk
+                // Update the assistant message in place
+                messages[assistantIndex] = ChatMessage(role: .assistant, content: fullResponse)
+            }
             
             // Trigger auto-naming if this is the first exchange
-            if messages.count == 2 { // First user message + first assistant response
-                triggerAutoNaming(userMessage: text, assistantResponse: response)
+            if messages.count == 2 {
+                triggerAutoNaming(userMessage: text, assistantResponse: fullResponse)
             }
             
             // Clear mentioned files after sending
             mentionedFiles.removeAll()
         } catch AIError.invalidAPIKey {
             errorMessage = "Please configure your API key in Settings"
+            // Remove the empty assistant message on error
+            if assistantIndex < messages.count {
+                messages.remove(at: assistantIndex)
+            }
         } catch AIError.serverError(let message) {
             errorMessage = "Server error: \(message)"
+            if assistantIndex < messages.count {
+                messages.remove(at: assistantIndex)
+            }
         } catch {
             errorMessage = "Failed to send message: \(error.localizedDescription)"
+            if assistantIndex < messages.count {
+                messages.remove(at: assistantIndex)
+            }
         }
         
         isProcessing = false
