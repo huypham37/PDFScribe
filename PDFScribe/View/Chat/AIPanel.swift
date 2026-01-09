@@ -418,14 +418,8 @@ struct AIPanel: View {
                         
                         // Processing indicator (only show if no tool calls are active)
                         if viewModel.isProcessing && viewModel.toolCalls.isEmpty {
-                            HStack(spacing: 8) {
-                                ProgressView()
-                                    .scaleEffect(0.6)
-                                Text("Thinking...")
-                                    .font(.system(size: 13))
-                                    .foregroundColor(.secondary)
-                            }
-                            .padding(.vertical, 8)
+                            ThinkingIndicator()
+                                .padding(.vertical, 8)
                         }
                         
                         // Bottom anchor for auto-scroll
@@ -916,5 +910,35 @@ struct AISettingsView: View {
         }
         .padding(20)
         .frame(width: 360)
+    }
+}
+
+// MARK: - Thinking Indicator
+struct ThinkingIndicator: View {
+    @State private var isActive = false
+    @State private var timer: Timer?
+    
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "scribble.variable")
+                .font(.system(size: 20))
+                .foregroundColor(.secondary)
+                .symbolEffect(.drawOn.wholeSymbol, isActive: isActive)
+                .onAppear {
+                    // Toggle isActive every 2 seconds to retrigger draw animation
+                    timer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { _ in
+                        isActive.toggle()
+                    }
+                    // Initial trigger
+                    isActive = true
+                }
+                .onDisappear {
+                    timer?.invalidate()
+                }
+            
+            Text("Thinking...")
+                .font(.system(size: 13))
+                .foregroundColor(.secondary)
+        }
     }
 }
