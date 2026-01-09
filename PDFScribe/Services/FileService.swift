@@ -129,5 +129,44 @@ class FileService: ObservableObject {
             .prefix(limit)
             .map { $0 }
     }
+    
+    // MARK: - App State Persistence
+    
+    private var appStateURL: URL {
+        let folder = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".local/share/pdfscribe", isDirectory: true)
+        
+        // Ensure directory exists
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        
+        return folder.appendingPathComponent("appstate.json")
+    }
+    
+    func loadAppState() -> AppState {
+        guard FileManager.default.fileExists(atPath: appStateURL.path) else {
+            print("📂 No saved app state found")
+            return .empty
+        }
+        
+        do {
+            let data = try Data(contentsOf: appStateURL)
+            let state = try JSONDecoder().decode(AppState.self, from: data)
+            print("✅ Loaded app state: project=\(state.projectDirectoryPath ?? "none"), pdf=\(state.pdfFilePath ?? "none")")
+            return state
+        } catch {
+            print("❌ Failed to load app state: \(error)")
+            return .empty
+        }
+    }
+    
+    func saveAppState(_ state: AppState) {
+        do {
+            let data = try JSONEncoder().encode(state)
+            try data.write(to: appStateURL)
+            print("💾 Saved app state: project=\(state.projectDirectoryPath ?? "none"), pdf=\(state.pdfFilePath ?? "none")")
+        } catch {
+            print("❌ Failed to save app state: \(error)")
+        }
+    }
 }
 

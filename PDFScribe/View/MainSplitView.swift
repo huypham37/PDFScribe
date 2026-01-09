@@ -151,6 +151,9 @@ struct MainSplitView: View {
         
         // Fetch recent sessions for this project
         aiViewModel.fetchRecentSessions()
+        
+        // Save app state
+        saveCurrentAppState()
     }
     
     private func openPDF() {
@@ -212,6 +215,9 @@ struct MainSplitView: View {
             } else {
                 editorViewModel.loadContent("")
             }
+            
+            // Save app state
+            saveCurrentAppState()
         } catch {
             showError("Could not load PDF: \(error.localizedDescription)")
         }
@@ -227,9 +233,22 @@ struct MainSplitView: View {
         guard let url = fileService.currentNoteURL else { return }
         do {
             try fileService.saveNote(content: editorViewModel.content, to: url)
+            
+            // Save app state
+            saveCurrentAppState()
         } catch {
             showError("Could not save note: \(error.localizedDescription)")
         }
+    }
+    
+    private func saveCurrentAppState() {
+        let state = AppState(
+            projectDirectory: appViewModel.projectRootURL,
+            pdfFile: pdfViewModel.currentPDFURL,
+            noteFile: fileService.currentNoteURL,
+            sidebarMode: appViewModel.sidebarMode
+        )
+        fileService.saveAppState(state)
     }
     
     private func showError(_ message: String) {
