@@ -22,13 +22,14 @@ class AIViewModel: ObservableObject, ToolCallHandler {
         self.aiService = aiService
         aiService.setToolCallHandler(self)
         loadCurrentSessionMessages()
-        fetchRecentSessions()
+        // Don't fetch sessions here - dependencies not yet injected
     }
     
     func fetchRecentSessions() {
         guard let projectURL = appViewModel?.projectRootURL,
               let fileService = fileService else {
             print("⚠️ Cannot fetch sessions: projectURL or fileService not available")
+            recentSessions = []
             return
         }
         
@@ -392,10 +393,14 @@ struct AIPanel: View {
                         .font(.system(size: 14))
                         .foregroundColor(.secondary)
                 }
-                .menuStyle(.borderlessButton)
+                 .menuStyle(.borderlessButton)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
+            .onAppear {
+                // Fetch sessions when view appears (after dependencies are injected)
+                viewModel.fetchRecentSessions()
+            }
             
             Divider()
                 .opacity(0.5)
