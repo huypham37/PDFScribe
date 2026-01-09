@@ -6,16 +6,18 @@ struct AgentModeSelector: View {
     @FocusState private var isFocused: Bool
     
     var body: some View {
-        HStack(spacing: 8) {
-            ForEach(availableModes) { mode in
-                ModeTag(
-                    mode: mode,
-                    isSelected: mode == selectedMode,
-                    onTap: {
-                        selectedMode = mode
-                    }
-                )
-            }
+        HStack {
+            // Single mode tag (left-aligned)
+            ModeTag(
+                mode: selectedMode,
+                isSelected: true,
+                onTap: {
+                    // Cycle to next mode when clicked
+                    cycleMode(forward: true)
+                }
+            )
+            
+            Spacer()
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -45,6 +47,7 @@ struct AgentModeSelector: View {
         }
         
         selectedMode = availableModes[nextIndex]
+        print("🔄 Cycled to mode: \(selectedMode.rawValue)")
     }
 }
 
