@@ -47,5 +47,13 @@ struct PDFScribeApp: App {
                 .environmentObject(fileService)
         }
         .windowStyle(.titleBar)
+        .commands {
+            CommandGroup(after: .newItem) {
+                Button("AI Settings...") {
+                    aiViewModel.showSettings()
+                }
+                .keyboardShortcut(",", modifiers: [.command, .shift])
+            }
+        }
     }
 }
