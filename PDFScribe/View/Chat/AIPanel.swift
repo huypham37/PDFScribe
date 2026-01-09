@@ -479,6 +479,10 @@ struct AIPanel: View {
                             .padding(.vertical, 10)
                             .background(Color(NSColor.controlBackgroundColor))
                             .cornerRadius(8)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+                            )
                             .disabled(viewModel.isProcessing)
                             .onChange(of: inputText) { newValue in
                                 handleTextChange(newValue)
@@ -823,7 +827,6 @@ struct ToolCallView: View {
 // MARK: - Settings View
 struct AISettingsView: View {
     @ObservedObject var aiService: AIService
-    @Environment(\.dismiss) var dismiss
     
     var body: some View {
         VStack(spacing: 20) {
@@ -836,6 +839,9 @@ struct AISettingsView: View {
                 }
             }
             .pickerStyle(.segmented)
+            .onChange(of: aiService.provider) { _, _ in
+                aiService.saveAPIKey()
+            }
             
             if aiService.provider != .opencode {
                 VStack(alignment: .leading, spacing: 6) {
@@ -846,6 +852,9 @@ struct AISettingsView: View {
                     SecureField("Enter your API key", text: $aiService.apiKey)
                         .textFieldStyle(.roundedBorder)
                         .font(.system(size: 13))
+                        .onChange(of: aiService.apiKey) { _, _ in
+                            aiService.saveAPIKey()
+                        }
                 }
             } else {
                 VStack(alignment: .leading, spacing: 6) {
@@ -856,6 +865,9 @@ struct AISettingsView: View {
                     TextField("/usr/local/bin/opencode", text: $aiService.opencodePath)
                         .textFieldStyle(.roundedBorder)
                         .font(.system(size: 13))
+                        .onChange(of: aiService.opencodePath) { _, _ in
+                            aiService.saveAPIKey()
+                        }
                 }
             }
             
@@ -924,26 +936,8 @@ struct AISettingsView: View {
                     .disabled(aiService.isConnecting)
                 }
             }
-            
-            HStack {
-                Button("Cancel") {
-                    dismiss()
-                }
-                .keyboardShortcut(.cancelAction)
-                
-                Spacer()
-                
-                Button("Save") {
-                    aiService.saveAPIKey()
-                    dismiss()
-                }
-                .keyboardShortcut(.defaultAction)
-                .buttonStyle(.borderedProminent)
-                .tint(Color("SlateIndigo"))
-            }
         }
         .padding(20)
-        .frame(width: 360)
     }
 }
 

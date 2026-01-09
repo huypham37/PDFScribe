@@ -77,5 +77,17 @@ struct PDFScribeApp: App {
                 .environmentObject(fileService)
         }
         .windowStyle(.titleBar)
+        .commands {
+            CommandGroup(after: .newItem) {
+                Button("Settings...") {
+                    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                }
+                .keyboardShortcut(",", modifiers: .command)
+            }
+        }
+        
+        Settings {
+            AISettingsView(aiService: aiService)
+        }
     }
 }
