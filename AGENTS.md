@@ -23,6 +23,47 @@ The app drives its research capabilities using **OpenCode**, a local AI service.
 
 - Always following the liquid glass guidelines at @assets/liquid-glass-doc
 
+## Liquid Glass Implementation (macOS 26+)
+
+**Quick Reference:**
+
+1. **Use NavigationSplitView** - Automatic glass effect on sidebar when built with Xcode 26
+   ```swift
+   NavigationSplitView {
+       SidebarView()  // Gets automatic glass effect
+   } detail: {
+       ContentView()  // Stays opaque
+   }
+   ```
+
+2. **Apply to Navigation Only** - Glass for sidebars/toolbars, NOT content
+   - ✅ Sidebars, toolbars, floating controls
+   - ❌ Lists, tables, editors, media
+
+3. **Manual Application** - For custom views:
+   ```swift
+   MyView()
+       .glassEffect()  // Default shape
+       .glassEffect(in: RoundedRectangle(cornerRadius: 12))  // Custom shape
+   ```
+
+4. **Backward Compatibility** - Fallback for macOS < 26:
+   ```swift
+   @ViewBuilder
+   func glassBackground() -> some View {
+       if #available(macOS 26.0, *) {
+           self.glassEffect()
+       } else {
+           self.background(.ultraThinMaterial)
+       }
+   }
+   ```
+
+5. **Key Rules:**
+   - Remove custom backgrounds that interfere
+   - Glass needs colorful content underneath to show refraction
+   - Don't over-apply - follow "navigation only" principle
+
 ## Code Style Guidelines
 
 ### Philosophy: Minimalism
