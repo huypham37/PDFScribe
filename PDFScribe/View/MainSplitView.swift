@@ -65,6 +65,9 @@ struct ChatConversationView: View {
             HStack {
                 TextField("Ask anything...", text: $aiViewModel.currentInput)
                     .textFieldStyle(.roundedBorder)
+                    .onSubmit {
+                        aiViewModel.sendMessage()
+                    }
                 
                 Button(action: {
                     aiViewModel.sendMessage()

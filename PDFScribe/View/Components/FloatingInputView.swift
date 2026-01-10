@@ -12,13 +12,28 @@ struct FloatingInputView: View {
                 .padding(.bottom, 32)
             
             // Input container with glass effect
-            TextField("Ask anything...", text: $aiViewModel.currentInput, axis: .vertical)
-                .textFieldStyle(.plain)
-                .font(.system(size: 15))
-                .lineLimit(1...10)
-                .padding(16)
-                .frame(maxWidth: 680)
-                .glassBackground()
+            HStack(alignment: .bottom, spacing: 12) {
+                TextField("Ask anything...", text: $aiViewModel.currentInput, axis: .vertical)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 15))
+                    .lineLimit(1...10)
+                    .onSubmit {
+                        aiViewModel.sendMessage()
+                    }
+                
+                Button(action: {
+                    aiViewModel.sendMessage()
+                }) {
+                    Image(systemName: "arrow.up.circle.fill")
+                        .font(.system(size: 28))
+                        .foregroundColor(aiViewModel.currentInput.isEmpty ? .gray : Color("SlateIndigo"))
+                }
+                .buttonStyle(.plain)
+                .disabled(aiViewModel.currentInput.isEmpty)
+            }
+            .padding(16)
+            .frame(maxWidth: 680)
+            .glassBackground()
         }
     }
 }
