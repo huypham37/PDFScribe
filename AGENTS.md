@@ -22,7 +22,7 @@ The app drives its research capabilities using **OpenCode**, a local AI service.
 ## IMPORTANT
 
 - Always following the liquid glass guidelines at @assets/liquid-glass-doc
-
+- only use build without debug. report to user if build failed to enable debugging.
 ## Liquid Glass Implementation (macOS 26+)
 
 **Quick Reference:**
