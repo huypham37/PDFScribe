@@ -8,9 +8,9 @@ enum AIProvider: String, CaseIterable {
 }
 
 enum TypingSpeed: Int, CaseIterable {
-    case fast = 1
-    case normal = 2
-    case relaxed = 5
+    case fast = 5
+    case normal = 15
+    case relaxed = 30
     
     var nanoseconds: UInt64 {
         UInt64(self.rawValue) * 1_000_000 // Convert ms to nanoseconds
