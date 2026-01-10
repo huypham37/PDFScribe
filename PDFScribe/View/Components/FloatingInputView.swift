@@ -17,9 +17,6 @@ struct FloatingInputView: View {
                     .textFieldStyle(.plain)
                     .font(.system(size: 15))
                     .lineLimit(1...10)
-                    .onSubmit {
-                        aiViewModel.sendMessage()
-                    }
                 
                 Button(action: {
                     aiViewModel.sendMessage()
@@ -30,6 +27,7 @@ struct FloatingInputView: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(aiViewModel.currentInput.isEmpty)
+                .keyboardShortcut(.return, modifiers: [])
             }
             .padding(16)
             .frame(maxWidth: 680)

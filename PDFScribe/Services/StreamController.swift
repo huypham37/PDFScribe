@@ -1,50 +1,45 @@
 import Foundation
 
-/// Controls the flow of text streaming to ensure a smooth, readable "typing" effect
-/// and tracks performance metrics.
+/// Streams text chunks from AI service to UI for smooth animation.
+/// Passes through chunks directly without artificial delays - SwiftUI handles animation.
 actor StreamController {
     
-    struct Metrics {
-        var timeToFirstToken: TimeInterval = 0
-        var totalCharacters: Int = 0
-        var totalTime: TimeInterval = 0
-        var charactersPerSecond: Double {
-            return totalTime > 0 ? Double(totalCharacters) / totalTime : 0
-        }
-    }
-    
-    private var metrics = Metrics()
-    
-    /// Processes a raw string stream and yields characters at a controlled pace based on typing speed.
-    /// - Parameters:
-    ///   - input: The raw stream from the AI service
-    ///   - speed: The desired typing speed (delay between characters)
-    /// - Returns: A controlled stream that yields individual characters
+    /// Passes through chunks from input stream directly to output.
+    /// SwiftUI animation handles the smooth appearance.
     func process(_ input: AsyncThrowingStream<String, Error>, speed: TypingSpeed) -> AsyncStream<String> {
+        print("🔵 DEBUG: StreamController.process() started - passthrough mode for animation")
+        
         return AsyncStream { continuation in
-            Task {
-                var characterCount = 0
+            Task(priority: .userInitiated) {
+                var totalCharacters = 0
                 let startTime = Date()
+                var chunkCount = 0
                 
                 do {
-                    // Stream characters from each chunk immediately as they arrive
+                    print("🔵 DEBUG: StreamController waiting for chunks...")
                     for try await chunk in input {
-                        for char in chunk {
-                            try? await Task.sleep(nanoseconds: speed.nanoseconds)
-                            continuation.yield(String(char))
-                            characterCount += 1
-                        }
+                        if Task.isCancelled { break }
+                        
+                        chunkCount += 1
+                        print("🔵 DEBUG: StreamController received chunk #\(chunkCount): '\(chunk.prefix(30))...' (\(chunk.count) chars)")
+                        
+                        // Pass through chunk directly - no splitting, no delay
+                        continuation.yield(chunk)
+                        totalCharacters += chunk.count
+                        
+                        print("🔵 DEBUG: Yielded chunk #\(chunkCount) to continuation")
                     }
                     
                     let totalTime = Date().timeIntervalSince(startTime)
-                    let cps = totalTime > 0 ? Double(characterCount) / totalTime : 0
-                    print("📊 Stream Metrics: \(characterCount) chars in \(String(format: "%.2f", totalTime))s (\(String(format: "%.1f", cps)) chars/s)")
+                    let cps = totalTime > 0 ? Double(totalCharacters) / totalTime : 0
+                    print("📊 Stream Metrics: \(totalCharacters) chars in \(String(format: "%.2f", totalTime))s (\(String(format: "%.1f", cps)) chars/s)")
                     
-                    continuation.finish()
                 } catch {
-                    print("❌ Stream error: \(error)")
-                    continuation.finish()
+                    print("❌ StreamController error: \(error)")
                 }
+                
+                continuation.finish()
+                print("🔵 DEBUG: StreamController finished")
             }
         }
     }

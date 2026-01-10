@@ -8,9 +8,9 @@ enum AIProvider: String, CaseIterable {
 }
 
 enum TypingSpeed: Int, CaseIterable {
-    case fast = 5
-    case normal = 15
-    case relaxed = 30
+    case fast = 5       // 5ms → 200 chars/s (ChatGPT/GetStream standard)
+    case normal = 10    // 10ms → 100 chars/s (smooth, balanced)
+    case relaxed = 20   // 20ms → 50 chars/s (slower, more readable)
     
     var nanoseconds: UInt64 {
         UInt64(self.rawValue) * 1_000_000 // Convert ms to nanoseconds

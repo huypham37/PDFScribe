@@ -43,27 +43,35 @@ class OpenCodeStrategy: AIProviderStrategy {
     }
     
     func sendStream(message: String, context: AIContext) -> AsyncThrowingStream<String, Error> {
+        print("🔵 DEBUG: sendStream called with message: '\(message.prefix(50))...'")
         return AsyncThrowingStream { continuation in
             Task { @MainActor in
+                print("🔵 DEBUG: sendStream Task started on MainActor")
                 self.streamContinuation = continuation
                 
                 do {
                     // Reset delegation state for new user turn
                     self.activeDelegationId = nil
+                    print("🔵 DEBUG: activeDelegationId reset, isInitialized: \(self.isInitialized)")
                     
                     if !self.isInitialized {
+                        print("🔵 DEBUG: Not initialized, calling initialize()")
                         try await self.initialize()
                         try await self.createSession()
                     }
                     
                     guard let sessionId = self.sessionId else {
+                        print("❌ DEBUG: No sessionId available!")
                         self.streamContinuation?.finish(throwing: AIError.serverError("No active session"))
                         self.streamContinuation = nil
                         return
                     }
                     
+                    print("🔵 DEBUG: About to call sendPromptStreaming with sessionId: \(sessionId)")
                     try await self.sendPromptStreaming(sessionId: sessionId, message: message, context: context)
+                    print("🔵 DEBUG: sendPromptStreaming completed successfully")
                 } catch {
+                    print("❌ DEBUG: sendStream caught error: \(error)")
                     self.streamContinuation?.finish(throwing: error)
                     self.streamContinuation = nil
                 }
@@ -77,6 +85,8 @@ class OpenCodeStrategy: AIProviderStrategy {
               let processManager = processManager else {
             throw AIError.serverError("Client not initialized")
         }
+        
+        print("🔵 DEBUG: sendPromptStreaming called with sessionId: \(sessionId)")
         
         var contentBlocks: [[String: Any]] = []
         
@@ -144,8 +154,12 @@ class OpenCodeStrategy: AIProviderStrategy {
             "prompt": contentBlocks
         ]
         
+        print("🔵 DEBUG: Creating RPC request for session/prompt...")
+
+        
         let (requestId, requestData) = try rpcClient.createRequest(method: "session/prompt", params: params)
         try processManager.write(requestData)
+        print("🔵 DEBUG: Data written to process, waiting for response...")
         
         print("[ACP] Waiting for session/prompt response...")
         let response = try await rpcClient.awaitResponse(forRequestId: requestId)
@@ -156,10 +170,16 @@ class OpenCodeStrategy: AIProviderStrategy {
             throw AIError.serverError(errorMsg)
         }
         
-        // Finish the stream when response completes
-        print("[ACP] Finishing stream")
-        self.streamContinuation?.finish()
-        self.streamContinuation = nil
+        // Check if response contains stopReason (means turn already completed)
+        if let result = response.result?.value as? [String: Any],
+           let stopReason = result["stopReason"] as? String {
+            print("[ACP] Turn completed with stopReason: \(stopReason)")
+            self.streamContinuation?.finish()
+            self.streamContinuation = nil
+        } else {
+            // Wait for turn_complete notification
+            print("[ACP] session/prompt acknowledged, waiting for streaming chunks...")
+        }
     }
     
     private func initialize() async throws {
@@ -217,8 +237,12 @@ class OpenCodeStrategy: AIProviderStrategy {
             "mcpServers": []
         ]
         
+        print("🔵 DEBUG: Creating RPC request for session/prompt...")
+
+        
         let (requestId, requestData) = try rpcClient.createRequest(method: "session/new", params: params)
         try processManager.write(requestData)
+        print("🔵 DEBUG: Data written to process, waiting for response...")
         
         let response = try await rpcClient.awaitResponse(forRequestId: requestId)
         
@@ -282,13 +306,13 @@ class OpenCodeStrategy: AIProviderStrategy {
         print("[DEFAULT] Available models: \(availableModelsList.map { $0.id }.joined(separator: ", "))")
         print("[DEFAULT] Available modes: \(availableModesList.map { $0.id }.joined(separator: ", "))")
         
-        // Set default model to github-copilot/gemini-3-pro-preview if available
-        if let preferredModel = availableModelsList.first(where: { $0.id == "github-copilot/gemini-3-pro-preview" }) {
-            print("[DEFAULT] Setting default model to github-copilot/gemini-3-pro-preview")
+        // Set default model to github-copilot/claude-haiku-4.5 if available
+        if let preferredModel = availableModelsList.first(where: { $0.id == "github-copilot/claude-haiku-4.5" }) {
+            print("[DEFAULT] Setting default model to github-copilot/claude-haiku-4.5")
             try await selectModel(preferredModel)
             print("[DEFAULT] Model set successfully - current: \(selectedModel?.id ?? "none")")
         } else {
-            print("[DEFAULT] github-copilot/gemini-3-pro-preview not available in models list")
+            print("[DEFAULT] github-copilot/claude-haiku-4.5 not available in models list")
         }
         
         // Set default mode to research-leader if available
@@ -317,6 +341,7 @@ class OpenCodeStrategy: AIProviderStrategy {
         case "agent_message_chunk":
             // Suppress text chunks while a delegation is active (sub-agent output)
             if activeDelegationId != nil {
+                print("🟠 DEBUG: Skipping chunk - delegation active")
                 return
             }
             
@@ -324,10 +349,14 @@ class OpenCodeStrategy: AIProviderStrategy {
                let type = content["type"] as? String,
                type == "text",
                let text = content["text"] as? String {
+                print("🟢 DEBUG: agent_message_chunk - yielding '\(text.prefix(30))...' (\(text.count) chars)")
                 // Yield chunk to stream on MainActor
                 Task { @MainActor in
                     self.streamContinuation?.yield(text)
+                    print("🟢 DEBUG: Yielded to continuation")
                 }
+            } else {
+                print("🔴 DEBUG: agent_message_chunk parsing failed - content: \(update)")
             }
         
         case "agent_message_complete", "turn_complete", "agent_turn_complete":
@@ -453,8 +482,11 @@ class OpenCodeStrategy: AIProviderStrategy {
         
         do {
             let startTime = Date()
+            print("🔵 DEBUG: Creating RPC request for session/prompt...")
+
             let (requestId, requestData) = try rpcClient.createRequest(method: "session/set_model", params: params)
             try processManager.write(requestData)
+        print("🔵 DEBUG: Data written to process, waiting for response...")
             
             let response = try await rpcClient.awaitResponse(forRequestId: requestId)
             let duration = Date().timeIntervalSince(startTime)
@@ -495,8 +527,11 @@ class OpenCodeStrategy: AIProviderStrategy {
         
         do {
             let startTime = Date()
+            print("🔵 DEBUG: Creating RPC request for session/prompt...")
+
             let (requestId, requestData) = try rpcClient.createRequest(method: "session/set_mode", params: params)
             try processManager.write(requestData)
+        print("🔵 DEBUG: Data written to process, waiting for response...")
             
             let response = try await rpcClient.awaitResponse(forRequestId: requestId)
             let duration = Date().timeIntervalSince(startTime)

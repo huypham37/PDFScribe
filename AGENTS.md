@@ -73,7 +73,6 @@ The app drives its research capabilities using **OpenCode**, a local AI service.
 - Prefer clarity over cleverness
 
 
-```
 
 ### Swift Formatting
 - **Indentation**: 4 spaces (no tabs)
@@ -95,7 +94,9 @@ func example() {
 
 
 
-```
+### Github issues:
+
+- always use gh issue list --limit 20 for listing issues
 
 
 

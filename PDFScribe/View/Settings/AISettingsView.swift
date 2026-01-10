@@ -19,6 +19,13 @@ struct AISettingsView: View {
                 } else {
                     SecureField("API Key", text: $aiService.apiKey)
                 }
+                
+                Picker("Streaming Speed", selection: $aiService.typingSpeed) {
+                    ForEach(TypingSpeed.allCases, id: \.self) { speed in
+                        Text("\(speed.displayName) (\(speed.rawValue)ms)").tag(speed)
+                    }
+                }
+                .help("Controls how fast AI responses appear character-by-character")
             }
             
             Button("Save") {
