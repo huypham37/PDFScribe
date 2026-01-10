@@ -13,6 +13,8 @@ class AppViewModel: ObservableObject {
     @Published var fileStructure: [FileItem] = []
     @Published var selectedFile: FileItem?
     @Published var sidebarMode: SidebarMode = .files
+    @Published var recentSessions: [ChatSession] = []
+    @Published var currentSession: ChatSession?
     
     private var allFiles: [FileItem] = []
     
@@ -110,5 +112,23 @@ class AppViewModel: ObservableObject {
         } catch {
             print("Failed to create folder: \(error)")
         }
+    }
+    
+    func createNewSession() {
+        let session = ChatSession(
+            id: UUID().uuidString,
+            projectPath: projectRootURL?.path ?? "",
+            title: "New Thread",
+            createdAt: Date(),
+            lastActive: Date(),
+            messages: [],
+            provider: "opencode"
+        )
+        currentSession = session
+        recentSessions.insert(session, at: 0)
+    }
+    
+    func selectSession(_ session: ChatSession) {
+        currentSession = session
     }
 }

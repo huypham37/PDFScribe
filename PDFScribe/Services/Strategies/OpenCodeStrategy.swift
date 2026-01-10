@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 protocol ToolCallHandler: AnyObject {
     func addToolCall(id: String, title: String)
     func updateToolCall(id: String, status: ToolCall.Status)
