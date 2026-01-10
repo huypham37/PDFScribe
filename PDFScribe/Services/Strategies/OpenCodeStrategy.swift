@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 protocol ToolCallHandler: AnyObject {
     func addToolCall(id: String, title: String)
     func updateToolCall(id: String, status: ToolCall.Status)
@@ -13,13 +14,15 @@ class OpenCodeStrategy: AIProviderStrategy {
     private var rpcClient: JSONRPCClient?
     private var sessionId: String? // OpenCode's internal session ID (not used for our persistence)
     private var isInitialized = false
-    private var accumulatedResponse = ""
     private var availableModelsList: [AIModel] = []
     private var availableModesList: [AIMode] = []
     private var selectedModel: AIModel?
     private var selectedMode: AIMode?
     private var activeDelegationId: String? = nil  // Track when main agent delegates to sub-agent
     weak var toolCallHandler: ToolCallHandler?
+    
+    // Streaming support
+    private var streamContinuation: AsyncThrowingStream<String, Error>.Continuation?
     
     init(binaryPath: String, workingDirectory: String? = nil) {
         self.binaryPath = binaryPath
@@ -39,27 +42,124 @@ class OpenCodeStrategy: AIProviderStrategy {
         print("OpenCode connection established - sessionId: \(sessionId ?? "nil")")
     }
     
-    func send(message: String, context: AIContext) async throws -> String {
-        let sendStartTime = Date()
-        print("OpenCodeStrategy.send() called - isInitialized: \(isInitialized), sessionId: \(sessionId ?? "nil")")
-        
-        // Reset delegation state for new user turn
-        activeDelegationId = nil
-        
-        if !isInitialized {
-            print("Initializing OpenCode...")
-            try await initialize()
-            print("Creating session...")
-            try await createSession()
+    func sendStream(message: String, context: AIContext) -> AsyncThrowingStream<String, Error> {
+        return AsyncThrowingStream { continuation in
+            Task { @MainActor in
+                self.streamContinuation = continuation
+                
+                do {
+                    // Reset delegation state for new user turn
+                    self.activeDelegationId = nil
+                    
+                    if !self.isInitialized {
+                        try await self.initialize()
+                        try await self.createSession()
+                    }
+                    
+                    guard let sessionId = self.sessionId else {
+                        self.streamContinuation?.finish(throwing: AIError.serverError("No active session"))
+                        self.streamContinuation = nil
+                        return
+                    }
+                    
+                    try await self.sendPromptStreaming(sessionId: sessionId, message: message, context: context)
+                } catch {
+                    self.streamContinuation?.finish(throwing: error)
+                    self.streamContinuation = nil
+                }
+            }
+        }
+    }
+    
+    @MainActor
+    private func sendPromptStreaming(sessionId: String, message: String, context: AIContext) async throws {
+        guard let rpcClient = rpcClient,
+              let processManager = processManager else {
+            throw AIError.serverError("Client not initialized")
         }
         
-        // Removed verbose timing log
+        var contentBlocks: [[String: Any]] = []
         
-        guard let sessionId = sessionId else {
-            throw AIError.serverError("No active session")
+        // Add user message
+        contentBlocks.append(["type": "text", "text": message])
+        
+        // Add current note file as resource if available
+        if let fileURL = context.currentFile,
+           let content = context.currentFileContent {
+            let mimeType = fileURL.pathExtension == "md" ? "text/markdown" : "text/plain"
+            contentBlocks.append([
+                "type": "resource",
+                "resource": [
+                    "uri": fileURL.absoluteString,
+                    "mimeType": mimeType,
+                    "text": content
+                ]
+            ])
         }
         
-        return try await sendPrompt(sessionId: sessionId, message: message, context: context)
+        // Add referenced files as resources
+        for fileURL in context.referencedFiles {
+            if let content = try? String(contentsOf: fileURL, encoding: .utf8) {
+                let mimeType: String
+                let ext = fileURL.pathExtension.lowercased()
+                switch ext {
+                case "md":
+                    mimeType = "text/markdown"
+                case "pdf":
+                    mimeType = "application/pdf"
+                default:
+                    mimeType = "text/plain"
+                }
+                
+                contentBlocks.append([
+                    "type": "resource",
+                    "resource": [
+                        "uri": fileURL.absoluteString,
+                        "mimeType": mimeType,
+                        "text": content
+                    ]
+                ])
+            }
+        }
+        
+        // Add editor selection if available
+        if let selection = context.selection, !selection.isEmpty {
+            contentBlocks.append([
+                "type": "text",
+                "text": "Selected text from editor:\n\(selection)"
+            ])
+        }
+        
+        // Add PDF selection if available
+        if let pdfSelection = context.pdfSelection, !pdfSelection.isEmpty {
+            let pageInfo = context.pdfPage.map { " (Page \($0))" } ?? ""
+            contentBlocks.append([
+                "type": "text",
+                "text": "Selected text from PDF\(pageInfo):\n\(pdfSelection)"
+            ])
+        }
+        
+        let params: [String: Any] = [
+            "sessionId": sessionId,
+            "prompt": contentBlocks
+        ]
+        
+        let (requestId, requestData) = try rpcClient.createRequest(method: "session/prompt", params: params)
+        try processManager.write(requestData)
+        
+        print("[ACP] Waiting for session/prompt response...")
+        let response = try await rpcClient.awaitResponse(forRequestId: requestId)
+        print("[ACP] Got session/prompt response: \(response)")
+        
+        guard response.error == nil else {
+            let errorMsg = response.error?.message ?? "Unknown error"
+            throw AIError.serverError(errorMsg)
+        }
+        
+        // Finish the stream when response completes
+        print("[ACP] Finishing stream")
+        self.streamContinuation?.finish()
+        self.streamContinuation = nil
     }
     
     private func initialize() async throws {
@@ -201,95 +301,6 @@ class OpenCodeStrategy: AIProviderStrategy {
         }
     }
     
-    private func sendPrompt(sessionId: String, message: String, context: AIContext) async throws -> String {
-        guard let rpcClient = rpcClient,
-              let processManager = processManager else {
-            throw AIError.serverError("Client not initialized")
-        }
-        
-        var contentBlocks: [[String: Any]] = []
-        
-        // Add user message
-        contentBlocks.append(["type": "text", "text": message])
-        
-        // Add current note file as resource if available
-        if let fileURL = context.currentFile,
-           let content = context.currentFileContent {
-            let mimeType = fileURL.pathExtension == "md" ? "text/markdown" : "text/plain"
-            contentBlocks.append([
-                "type": "resource",
-                "resource": [
-                    "uri": fileURL.absoluteString,
-                    "mimeType": mimeType,
-                    "text": content
-                ]
-            ])
-        }
-        
-        // Add referenced files as resources
-        for fileURL in context.referencedFiles {
-            if let content = try? String(contentsOf: fileURL, encoding: .utf8) {
-                let mimeType: String
-                let ext = fileURL.pathExtension.lowercased()
-                switch ext {
-                case "md":
-                    mimeType = "text/markdown"
-                case "pdf":
-                    mimeType = "application/pdf"
-                default:
-                    mimeType = "text/plain"
-                }
-                
-                contentBlocks.append([
-                    "type": "resource",
-                    "resource": [
-                        "uri": fileURL.absoluteString,
-                        "mimeType": mimeType,
-                        "text": content
-                    ]
-                ])
-            }
-        }
-        
-        // Add editor selection if available
-        if let selection = context.selection, !selection.isEmpty {
-            contentBlocks.append([
-                "type": "text",
-                "text": "Selected text from editor:\n\(selection)"
-            ])
-        }
-        
-        // Add PDF selection if available
-        if let pdfSelection = context.pdfSelection, !pdfSelection.isEmpty {
-            let pageInfo = context.pdfPage.map { " (Page \($0))" } ?? ""
-            contentBlocks.append([
-                "type": "text",
-                "text": "Selected text from PDF\(pageInfo):\n\(pdfSelection)"
-            ])
-        }
-        
-        let params: [String: Any] = [
-            "sessionId": sessionId,
-            "prompt": contentBlocks
-        ]
-        
-        accumulatedResponse = ""
-        
-        let (requestId, requestData) = try rpcClient.createRequest(method: "session/prompt", params: params)
-        try processManager.write(requestData)
-        
-        let response = try await rpcClient.awaitResponse(forRequestId: requestId)
-        
-        // Removed verbose logs
-        
-        guard response.error == nil else {
-            let errorMsg = response.error?.message ?? "Unknown error"
-            throw AIError.serverError(errorMsg)
-        }
-        
-        return accumulatedResponse.isEmpty ? "No response received" : accumulatedResponse
-    }
-    
     private func handleNotification(_ notification: JSONRPCNotification) {
         guard let params = notification.params?.value as? [String: Any],
               let update = params["update"] as? [String: Any],
@@ -299,14 +310,31 @@ class OpenCodeStrategy: AIProviderStrategy {
         
         guard notification.method == "session/update" else { return }
         
-        // Removed verbose notification log
+        // Debug: print all sessionUpdate types
+        print("[ACP] sessionUpdate: \(sessionUpdate)")
+        
         switch sessionUpdate {
         case "agent_message_chunk":
+            // Suppress text chunks while a delegation is active (sub-agent output)
+            if activeDelegationId != nil {
+                return
+            }
+            
             if let content = update["content"] as? [String: Any],
                let type = content["type"] as? String,
                type == "text",
                let text = content["text"] as? String {
-                accumulatedResponse += text
+                // Yield chunk to stream on MainActor
+                Task { @MainActor in
+                    self.streamContinuation?.yield(text)
+                }
+            }
+        
+        case "agent_message_complete", "turn_complete", "agent_turn_complete":
+            // Agent finished generating response - finish the stream on MainActor
+            Task { @MainActor in
+                self.streamContinuation?.finish()
+                self.streamContinuation = nil
             }
             
         case "tool_call":

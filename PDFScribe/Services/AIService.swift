@@ -7,6 +7,24 @@ enum AIProvider: String, CaseIterable {
     case opencode = "OpenCode"
 }
 
+enum TypingSpeed: Int, CaseIterable {
+    case fast = 1
+    case normal = 2
+    case relaxed = 5
+    
+    var nanoseconds: UInt64 {
+        UInt64(self.rawValue) * 1_000_000 // Convert ms to nanoseconds
+    }
+    
+    var displayName: String {
+        switch self {
+        case .fast: return "Fast"
+        case .normal: return "Normal"
+        case .relaxed: return "Relaxed"
+        }
+    }
+}
+
 enum AIError: Error {
     case invalidAPIKey
     case invalidResponse
@@ -31,6 +49,7 @@ class AIService: ObservableObject {
     @Published var apiKey: String = ""
     @Published var provider: AIProvider = .openai
     @Published var opencodePath: String = "/usr/local/bin/opencode"
+    @Published var typingSpeed: TypingSpeed = .normal
     @Published var availableModels: [AIModel] = []
     @Published var availableModes: [AIMode] = []
     @Published var currentModel: AIModel?
@@ -71,6 +90,44 @@ class AIService: ObservableObject {
         }
     }
     
+    func sendMessageStream(_ message: String, context: AIContext, saveToHistory: Bool = true) -> AsyncThrowingStream<String, Error> {
+        return AsyncThrowingStream { continuation in
+            Task { @MainActor in
+                guard let strategy = self.currentStrategy else {
+                    continuation.finish(throwing: AIError.invalidAPIKey)
+                    return
+                }
+                
+                // Store user message
+                if saveToHistory, let sessionId = self.currentSessionId, let fileService = self.fileService {
+                    let userMsg = StoredMessage(role: "user", content: message)
+                    fileService.addMessageToSession(sessionId: sessionId, message: userMsg)
+                }
+                
+                var fullResponse = ""
+                let stream = strategy.sendStream(message: message, context: context)
+                
+                do {
+                    for try await chunk in stream {
+                        fullResponse += chunk
+                        continuation.yield(chunk)
+                    }
+                    
+                    // Store assistant response after completion
+                    if saveToHistory, let sessionId = self.currentSessionId, let fileService = self.fileService {
+                        let assistantMsg = StoredMessage(role: "assistant", content: fullResponse)
+                        fileService.addMessageToSession(sessionId: sessionId, message: assistantMsg)
+                    }
+                    
+                    self.updateAvailableModelsAndModes()
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+        }
+    }
+    
     func sendMessage(_ message: String, context: AIContext, saveToHistory: Bool = true) async throws -> String {
         guard let strategy = currentStrategy else {
             throw AIError.invalidAPIKey
@@ -82,18 +139,24 @@ class AIService: ObservableObject {
             fileService.addMessageToSession(sessionId: sessionId, message: userMsg)
         }
         
-        let response = try await strategy.send(message: message, context: context)
+        // Use streaming internally but collect full response
+        var fullResponse = ""
+        let stream = strategy.sendStream(message: message, context: context)
+        
+        for try await chunk in stream {
+            fullResponse += chunk
+        }
         
         // Store assistant response (only if saveToHistory is true)
         if saveToHistory, let sessionId = currentSessionId, let fileService = fileService {
-            let assistantMsg = StoredMessage(role: "assistant", content: response)
+            let assistantMsg = StoredMessage(role: "assistant", content: fullResponse)
             fileService.addMessageToSession(sessionId: sessionId, message: assistantMsg)
         }
         
         // Update current model/mode in case they changed during session creation
         updateAvailableModelsAndModes()
         
-        return response
+        return fullResponse
     }
     
     private func updateStrategy() {
@@ -229,6 +292,7 @@ class AIService: ObservableObject {
         UserDefaults.standard.set(apiKey, forKey: "ai_api_key")
         UserDefaults.standard.set(provider.rawValue, forKey: "ai_provider")
         UserDefaults.standard.set(opencodePath, forKey: "opencode_path")
+        UserDefaults.standard.set(typingSpeed.rawValue, forKey: "typing_speed")
         
         // Only recreate strategy if provider or path changed
         if oldProvider != provider || oldPath != opencodePath {
@@ -242,6 +306,10 @@ class AIService: ObservableObject {
         if let providerString = UserDefaults.standard.string(forKey: "ai_provider"),
            let savedProvider = AIProvider(rawValue: providerString) {
             provider = savedProvider
+        }
+        let speedRawValue = UserDefaults.standard.integer(forKey: "typing_speed")
+        if speedRawValue != 0, let savedSpeed = TypingSpeed(rawValue: speedRawValue) {
+            typingSpeed = savedSpeed
         }
     }
 }
