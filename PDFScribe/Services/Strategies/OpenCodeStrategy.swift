@@ -2,9 +2,10 @@ import Foundation
 
 @MainActor
 protocol ToolCallHandler: AnyObject {
-    func addToolCall(id: String, title: String)
+    func addToolCall(id: String, name: String, query: String, toolType: ToolCall.ToolType)
     func updateToolCall(id: String, status: ToolCall.Status)
     func updateToolCallTitle(id: String, title: String)
+    func updateToolCallQuery(id: String, query: String)
 }
 
 class OpenCodeStrategy: AIProviderStrategy {
@@ -311,8 +312,8 @@ class OpenCodeStrategy: AIProviderStrategy {
             }
         }
         
-        // Set default mode to research-leader if available
-        if let preferredMode = availableModesList.first(where: { $0.id == "research-leader" }) {
+        // Set default mode to build if available
+        if let preferredMode = availableModesList.first(where: { $0.id == "build" }) {
             try await selectMode(preferredMode)
         }
     }
@@ -331,6 +332,8 @@ class OpenCodeStrategy: AIProviderStrategy {
         }
         
         print("📨 [OpenCodeStrategy] Notification: sessionUpdate=\(sessionUpdate)")
+        print("🔍 [OpenCodeStrategy] Update keys: \(update.keys.sorted())")
+        print("🔍 [OpenCodeStrategy] Full update: \(update)")
         
         switch sessionUpdate {
         case "agent_message_chunk":
@@ -361,51 +364,91 @@ class OpenCodeStrategy: AIProviderStrategy {
                 self.finishStream()
             }
             
-        case "tool_call":
+         case "tool_call":
+            print("🔧 [OpenCodeStrategy] Tool call notification received!")
+            print("🔧 [OpenCodeStrategy] Tool call data: \(update)")
+            
             if let toolCallId = update["toolCallId"] as? String,
                let title = update["title"] as? String,
                let kind = update["kind"] as? String {
                 
+                print("🔧 [OpenCodeStrategy] Tool call: id=\(toolCallId), name=\(title), query=\(kind)")
+                
                 // If a delegation is active, ignore all subsequent tool calls (they're from sub-agent)
                 if activeDelegationId != nil {
+                    print("🚫 [OpenCodeStrategy] Suppressing tool call - delegation active")
                     return
                 }
+                
+                // Infer tool type from name
+                let toolType = ToolCall.inferToolType(from: title)
                 
                 // Check if this is a delegation (task tool)
                 if title == "task" {
                     // Mark that we're now delegating
                     activeDelegationId = toolCallId
                     
-                    // Format display title
-                    var displayTitle = "Delegate: \(kind)"
+                    // Extract subagent type for display
+                    var subagentType = kind
                     if let rawInput = update["rawInput"] as? [String: Any],
-                       let subagentType = rawInput["subagent_type"] as? String {
-                        displayTitle = "Delegate: \(subagentType)"
+                       let type = rawInput["subagent_type"] as? String {
+                        subagentType = type
                     }
                     
                     Task { @MainActor in
-                        toolCallHandler?.addToolCall(id: toolCallId, title: displayTitle)
+                        toolCallHandler?.addToolCall(
+                            id: toolCallId,
+                            name: "task",
+                            query: subagentType,
+                            toolType: .delegate
+                        )
                     }
                 } else {
                     // Normal main agent tool call
-                    let displayTitle = "\(title): \(kind)"
+                    // Extract query from rawInput based on tool type
+                    var query = kind
+                    if let rawInput = update["rawInput"] as? [String: Any] {
+                        // Try common field names for the query
+                        if let command = rawInput["command"] as? String {
+                            query = command  // bash tool
+                        } else if let filePath = rawInput["filePath"] as? String {
+                            query = filePath  // read/write/edit tools
+                        } else if let pattern = rawInput["pattern"] as? String {
+                            query = pattern  // glob/grep tools
+                        } else if let url = rawInput["url"] as? String {
+                            query = url  // webfetch tool
+                        } else if let description = rawInput["description"] as? String {
+                            query = description  // fallback to description
+                        }
+                    }
+                    
                     Task { @MainActor in
-                        toolCallHandler?.addToolCall(id: toolCallId, title: displayTitle)
+                        toolCallHandler?.addToolCall(
+                            id: toolCallId,
+                            name: title,
+                            query: query,
+                            toolType: toolType
+                        )
                     }
                 }
+            } else {
+                print("⚠️ [OpenCodeStrategy] Tool call notification missing required fields")
+                print("⚠️ [OpenCodeStrategy] toolCallId: \(update["toolCallId"] ?? "nil")")
+                print("⚠️ [OpenCodeStrategy] title: \(update["title"] ?? "nil")")
+                print("⚠️ [OpenCodeStrategy] kind: \(update["kind"] ?? "nil")")
             }
             
         case "tool_call_update":
+            print("🔄 [OpenCodeStrategy] Tool call update notification received!")
+            print("🔄 [OpenCodeStrategy] Update data: \(update)")
             if let toolCallId = update["toolCallId"] as? String,
                let statusString = update["status"] as? String {
                 let status: ToolCall.Status = {
                     switch statusString {
-                    case "pending": return .pending
-                    case "in_progress": return .inProgress
                     case "completed": return .completed
                     case "failed": return .failed
                     case "cancelled": return .cancelled
-                    default: return .inProgress
+                    default: return .running
                     }
                 }()
                 
@@ -416,23 +459,47 @@ class OpenCodeStrategy: AIProviderStrategy {
                     }
                 }
                 
-                // Check if this update contains rawInput with subagent_type (for title update)
+                // Extract query and title updates from rawInput
                 var updatedTitle: String? = nil
-                if let rawInput = update["rawInput"] as? [String: Any],
-                   let subagentType = rawInput["subagent_type"] as? String {
-                    updatedTitle = "Delegate: \(subagentType)"
+                var updatedQuery: String? = nil
+                
+                if let rawInput = update["rawInput"] as? [String: Any] {
+                    // Check for subagent type (for delegation title)
+                    if let subagentType = rawInput["subagent_type"] as? String {
+                        updatedTitle = "Delegate: \(subagentType)"
+                    }
+                    
+                    // Extract query from rawInput (same logic as tool_call)
+                    if let command = rawInput["command"] as? String {
+                        updatedQuery = command
+                    } else if let filePath = rawInput["filePath"] as? String {
+                        updatedQuery = filePath
+                    } else if let pattern = rawInput["pattern"] as? String {
+                        updatedQuery = pattern
+                    } else if let url = rawInput["url"] as? String {
+                        updatedQuery = url
+                    } else if let description = rawInput["description"] as? String {
+                        updatedQuery = description
+                    }
                 }
                 
                 Task { @MainActor in
-                    toolCallHandler?.updateToolCall(id: toolCallId, status: status)
+                    // Update query first (if we have one)
+                    if let query = updatedQuery {
+                        toolCallHandler?.updateToolCallQuery(id: toolCallId, query: query)
+                    }
+                    // Update title if needed
                     if let newTitle = updatedTitle {
                         toolCallHandler?.updateToolCallTitle(id: toolCallId, title: newTitle)
                     }
+                    // Update status
+                    toolCallHandler?.updateToolCall(id: toolCallId, status: status)
                 }
             }
             
         default:
-            break
+            print("❓ [OpenCodeStrategy] Unhandled sessionUpdate: \(sessionUpdate)")
+            print("❓ [OpenCodeStrategy] Update content: \(update)")
         }
     }
     

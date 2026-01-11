@@ -14,10 +14,11 @@ struct ReportView: View {
                         // Group messages into query-response pairs
                         ForEach(Array(stride(from: 0, to: aiViewModel.messages.count, by: 2)), id: \.self) { index in
                             if index < aiViewModel.messages.count {
-                                PremiumQuerySection(
+                                PremiumQuerySectionWithTools(
                                     query: aiViewModel.messages[index],
                                     response: index + 1 < aiViewModel.messages.count ? aiViewModel.messages[index + 1] : nil
                                 )
+                                .environmentObject(aiViewModel)
                                 .id(aiViewModel.messages[index].id)
                                 .transition(.opacity.combined(with: .move(edge: .bottom)))
                                 
@@ -79,6 +80,53 @@ struct PremiumQuerySection: View {
                 .padding(.horizontal, contentPadding)
             
             // AI Response with collapsible sections
+            if let response = response {
+                EditorialResponseView(message: response, modelName: "AI Assistant")
+                    .padding(.horizontal, contentPadding)
+                    .padding(.bottom, 48)
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+// MARK: - Query Section with Tool Calls
+struct PremiumQuerySectionWithTools: View {
+    @EnvironmentObject var aiViewModel: AIViewModel
+    let query: StoredMessage
+    let response: StoredMessage?
+    
+    private let contentPadding: CGFloat = 100
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // User query
+            Text(query.content)
+                .font(.system(size: 17))
+                .foregroundColor(Color(nsColor: NSColor(white: 0.1, alpha: 1.0)))
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .textSelection(.enabled)
+                .padding(.top, 48)
+                .padding(.bottom, 32)
+                .padding(.horizontal, contentPadding)
+            
+            // Tool Call Display
+            if !aiViewModel.toolCalls.isEmpty {
+                if aiViewModel.isProcessing {
+                    // During execution - show spotlight for current running tool
+                    ToolCallSpotlightView(viewModel: aiViewModel)
+                        .padding(.horizontal, contentPadding)
+                        .padding(.bottom, 24)
+                } else {
+                    // After completion - show collapsed timeline
+                    ToolCallTimelineView(toolCalls: aiViewModel.toolCalls)
+                        .padding(.horizontal, contentPadding)
+                        .padding(.bottom, 24)
+                }
+            }
+            
+            // AI Response
             if let response = response {
                 EditorialResponseView(message: response, modelName: "AI Assistant")
                     .padding(.horizontal, contentPadding)

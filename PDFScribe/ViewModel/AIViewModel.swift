@@ -51,6 +51,7 @@ class AIViewModel: ObservableObject {
         
         currentInput = ""
         isProcessing = true
+        toolCalls.removeAll()  // Clear previous tool calls for new query
         
         // Add user message immediately
         let userMessage = StoredMessage(role: "user", content: message)
@@ -115,19 +116,33 @@ class AIViewModel: ObservableObject {
 
 @MainActor
 extension AIViewModel: ToolCallHandler {
-    func addToolCall(id: String, title: String) {
-        toolCalls.append(ToolCall(id: id, title: title, status: .running))
+    func addToolCall(id: String, name: String, query: String, toolType: ToolCall.ToolType) {
+        let tool = ToolCall(id: id, name: name, query: query, status: .running, toolType: toolType)
+        toolCalls.append(tool)
     }
     
     func updateToolCall(id: String, status: ToolCall.Status) {
         if let index = toolCalls.firstIndex(where: { $0.id == id }) {
             toolCalls[index].status = status
+            // Set end time when completed/failed/cancelled
+            if status == .completed || status == .failed || status == .cancelled {
+                toolCalls[index].endTime = Date()
+            }
         }
     }
     
     func updateToolCallTitle(id: String, title: String) {
         if let index = toolCalls.firstIndex(where: { $0.id == id }) {
-            toolCalls[index].title = title
+            toolCalls[index].name = title
+        }
+    }
+    
+    func updateToolCallQuery(id: String, query: String) {
+        if let index = toolCalls.firstIndex(where: { $0.id == id }) {
+            // Only update if we have a more meaningful query
+            if !query.isEmpty && toolCalls[index].query != query {
+                toolCalls[index].query = query
+            }
         }
     }
 }
