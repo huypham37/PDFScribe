@@ -28,7 +28,6 @@ class OpenCodeConfigLoader {
         
         // Try to load custom primary agents from config
         guard FileManager.default.fileExists(atPath: configPath.path) else {
-            print("⚠️ OpenCode config not found at \(configPath.path)")
             return agents
         }
         
@@ -50,12 +49,10 @@ class OpenCodeConfigLoader {
                             description: agent.description ?? "Custom agent"
                         )
                         agents.append(customMode)
-                        print("✅ Loaded custom primary agent: \(agent.name ?? id)")
                     }
                 }
             }
         } catch {
-            print("❌ Failed to load OpenCode config: \(error)")
         }
         
         return agents

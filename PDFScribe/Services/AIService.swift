@@ -8,9 +8,9 @@ enum AIProvider: String, CaseIterable {
 }
 
 enum TypingSpeed: Int, CaseIterable {
-    case fast = 1
-    case normal = 2
-    case relaxed = 5
+    case fast = 5       // 5ms → 200 chars/s (ChatGPT/GetStream standard)
+    case normal = 10    // 10ms → 100 chars/s (smooth, balanced)
+    case relaxed = 20   // 20ms → 50 chars/s (slower, more readable)
     
     var nanoseconds: UInt64 {
         UInt64(self.rawValue) * 1_000_000 // Convert ms to nanoseconds
@@ -79,7 +79,6 @@ class AIService: ObservableObject {
     
     /// Call this when the project root URL becomes available
     func onProjectLoaded() {
-        print("📱 AIService.onProjectLoaded() called")
         loadOrCreateSession()
     }
     
@@ -160,8 +159,6 @@ class AIService: ObservableObject {
     }
     
     private func updateStrategy() {
-        print("📱 AIService.updateStrategy() called - provider: \(provider.rawValue)")
-        
         switch provider {
         case .openai:
             currentStrategy = OpenAIStrategy(apiKey: apiKey)
@@ -169,7 +166,6 @@ class AIService: ObservableObject {
             currentStrategy = AnthropicStrategy(apiKey: apiKey)
         case .opencode:
             let workingDir = appViewModel?.projectRootURL?.path
-            print("📱 Creating OpenCodeStrategy - workingDir: \(workingDir ?? "nil")")
             let strategy = OpenCodeStrategy(binaryPath: opencodePath, workingDirectory: workingDir)
             strategy.toolCallHandler = toolCallHandler
             currentStrategy = strategy
@@ -178,12 +174,9 @@ class AIService: ObservableObject {
             Task { @MainActor in
                 isConnecting = true
                 do {
-                    print("🔌 Attempting to connect to OpenCode...")
                     try await strategy.connect()
-                    print("✅ OpenCode connected successfully")
                     updateAvailableModelsAndModes()
                 } catch {
-                    print("❌ Failed to proactively connect to OpenCode: \(error)")
                 }
                 isConnecting = false
             }
@@ -194,26 +187,17 @@ class AIService: ObservableObject {
     }
     
     private func loadOrCreateSession() {
-        print("📱 loadOrCreateSession() called")
-        print("   - appViewModel?.projectRootURL: \(appViewModel?.projectRootURL?.path ?? "nil")")
-        print("   - fileService: \(fileService != nil ? "exists" : "nil")")
-        
         guard let projectURL = appViewModel?.projectRootURL,
               let fileService = fileService else {
-            print("⚠️ Cannot load/create session: projectURL=\(appViewModel?.projectRootURL?.path ?? "nil"), fileService=\(fileService != nil ? "exists" : "nil")")
             return
         }
-        
-        print("📱 Attempting to load existing session for: \(projectURL.path)")
         
         // Try to load existing session
         if let existingSession = fileService.getMostRecentSession(for: projectURL.path) {
             currentSessionId = existingSession.id
-            print("📂 Loaded existing session: \(existingSession.id) with \(existingSession.messages.count) messages")
         } else {
             // Create new session
             let newSessionId = UUID().uuidString
-            print("✨ Creating new session: \(newSessionId)")
             let newSession = ChatSession(
                 id: newSessionId,
                 projectPath: projectURL.path,
@@ -221,10 +205,8 @@ class AIService: ObservableObject {
                 messages: [],
                 provider: provider.rawValue.lowercased()
             )
-            print("💾 Calling fileService.addOrUpdateSession()")
             fileService.addOrUpdateSession(newSession)
             currentSessionId = newSessionId
-            print("✅ New session created and saved: \(newSessionId)")
         }
     }
     
@@ -244,7 +226,6 @@ class AIService: ObservableObject {
         )
         fileService.addOrUpdateSession(newSession)
         currentSessionId = newSessionId
-        print("✨ Created new session: \(newSessionId)")
     }
     
     func loadSession(_ session: ChatSession) -> [StoredMessage] {

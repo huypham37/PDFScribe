@@ -21,8 +21,8 @@ struct MainSplitView: View {
                     FloatingInputView()
                         .environmentObject(aiViewModel)
                 } else {
-                    // Chat conversation view
-                    ChatConversationView()
+                    // Research document view - NYT editorial style
+                    ReportView()
                         .environmentObject(aiViewModel)
                 }
             }
@@ -38,14 +38,25 @@ struct ChatConversationView: View {
     
     var body: some View {
         VStack {
-            // Message list
-            ScrollView {
-                VStack(spacing: 16) {
-                    ForEach(aiViewModel.messages) { message in
-                        MessageBubble(message: message)
+            // Message list with auto-scroll
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(spacing: 16) {
+                        ForEach(aiViewModel.messages) { message in
+                            MessageBubble(message: message)
+                                .id(message.id)
+                        }
+                    }
+                    .padding()
+                }
+                .onChange(of: aiViewModel.messages.last?.content) {
+                    // Auto-scroll to the last message when content updates
+                    if let lastMessage = aiViewModel.messages.last {
+                        withAnimation(.easeOut(duration: 0.3)) {
+                            proxy.scrollTo(lastMessage.id, anchor: .bottom)
+                        }
                     }
                 }
-                .padding()
             }
             
             Divider()
@@ -54,6 +65,9 @@ struct ChatConversationView: View {
             HStack {
                 TextField("Ask anything...", text: $aiViewModel.currentInput)
                     .textFieldStyle(.roundedBorder)
+                    .onSubmit {
+                        aiViewModel.sendMessage()
+                    }
                 
                 Button(action: {
                     aiViewModel.sendMessage()

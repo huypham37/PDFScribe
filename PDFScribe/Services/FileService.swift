@@ -58,19 +58,15 @@ class FileService: ObservableObject {
             let data = try Data(contentsOf: historyURL)
             return try JSONDecoder().decode(ChatHistory.self, from: data)
         } catch {
-            print("Failed to load chat history: \(error)")
             return ChatHistory(sessions: [])
         }
     }
     
     func saveChatHistory(_ history: ChatHistory) {
-        print("💾 FileService: Saving history with \(history.sessions.count) session(s) to \(historyURL.path)")
         do {
             let data = try JSONEncoder().encode(history)
             try data.write(to: historyURL)
-            print("✅ FileService: History saved successfully")
         } catch {
-            print("❌ FileService: Failed to save chat history: \(error)")
         }
     }
     
@@ -84,13 +80,10 @@ class FileService: ObservableObject {
     }
     
     func addOrUpdateSession(_ session: ChatSession) {
-        print("📝 FileService: Adding/updating session \(session.id) with title '\(session.title)'")
         var history = loadChatHistory()
         if let index = history.sessions.firstIndex(where: { $0.id == session.id }) {
-            print("   Updating existing session at index \(index)")
             history.sessions[index] = session
         } else {
-            print("   Adding new session")
             history.sessions.append(session)
         }
         saveChatHistory(history)
@@ -99,7 +92,6 @@ class FileService: ObservableObject {
     func addMessageToSession(sessionId: String, message: StoredMessage) {
         var history = loadChatHistory()
         guard let index = history.sessions.firstIndex(where: { $0.id == sessionId }) else {
-            print("⚠️ FileService: Session \(sessionId) not found when adding message")
             return
         }
         
@@ -144,17 +136,14 @@ class FileService: ObservableObject {
     
     func loadAppState() -> AppState {
         guard FileManager.default.fileExists(atPath: appStateURL.path) else {
-            print("📂 No saved app state found")
             return .empty
         }
         
         do {
             let data = try Data(contentsOf: appStateURL)
             let state = try JSONDecoder().decode(AppState.self, from: data)
-            print("✅ Loaded app state: project=\(state.projectDirectoryPath ?? "none"), pdf=\(state.pdfFilePath ?? "none")")
             return state
         } catch {
-            print("❌ Failed to load app state: \(error)")
             return .empty
         }
     }
@@ -163,9 +152,7 @@ class FileService: ObservableObject {
         do {
             let data = try JSONEncoder().encode(state)
             try data.write(to: appStateURL)
-            print("💾 Saved app state: project=\(state.projectDirectoryPath ?? "none"), pdf=\(state.pdfFilePath ?? "none")")
         } catch {
-            print("❌ Failed to save app state: \(error)")
         }
     }
 }
