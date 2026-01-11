@@ -142,7 +142,12 @@ PDFScribe/
 │   │   ├── MainSplitView.swift
 │   │   ├── Components/
 │   │   │   ├── FloatingInputView.swift
-│   │   │   ├── ResearchDocumentView.swift
+│   │   │   ├── ReportView.swift
+│   │   │   ├── EditorialResponseView.swift
+│   │   │   ├── BadgeRow.swift
+│   │   │   ├── CitationPills.swift
+│   │   │   ├── CollapsibleSection.swift
+│   │   │   ├── SourcesList.swift
 │   │   │   ├── MarkdownTextView.swift
 │   │   │   └── LuxuryMarkdownTheme.swift
 │   │   ├── Sidebar/
@@ -196,9 +201,14 @@ PDFScribe/
 **View/**
 - `MainSplitView.swift` - Root NavigationSplitView layout
 - `FloatingInputView.swift` - Centered input for empty state
-- `ResearchDocumentView.swift` - Editorial document layout
+- `ReportView.swift` - Editorial document layout (renamed from ResearchDocumentView)
+- `EditorialResponseView.swift` - Main editorial response component with collapsible sections
+- `BadgeRow.swift` - Model name and source count badges
+- `CitationPills.swift` - Interactive citation pill buttons
+- `CollapsibleSection.swift` - Animated section disclosure with chevron
+- `SourcesList.swift` - Source URLs with hover effects
 - `MarkdownTextView.swift` - Markdown renderer
-- `LuxuryMarkdownTheme.swift` - Custom Markdown styling
+- `LuxuryMarkdownTheme.swift` - Custom Markdown styling (Charter/Palatino fonts)
 - `SidebarView.swift` - Navigation sidebar
 - `AISettingsView.swift` - Provider/API key configuration
 - `View+GlassEffect.swift` - Liquid Glass fallback modifier
