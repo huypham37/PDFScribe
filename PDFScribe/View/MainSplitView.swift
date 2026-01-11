@@ -21,8 +21,8 @@ struct MainSplitView: View {
                     FloatingInputView()
                         .environmentObject(aiViewModel)
                 } else {
-                    // Chat conversation view
-                    ChatConversationView()
+                    // Research document view - NYT editorial style
+                    ReportView()
                         .environmentObject(aiViewModel)
                 }
             }

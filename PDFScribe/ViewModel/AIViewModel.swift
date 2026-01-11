@@ -23,6 +23,7 @@ class AIViewModel: ObservableObject {
     }
     
     private func updateAssistantMessage(content: String) async {
+        print("💬 [AIViewModel] Updating assistant message: length=\(content.count), preview=\"\(String(content.prefix(50)))...\"")
         await MainActor.run {
             // Use smooth animation for text updates (0.3s fade-in)
             withAnimation(.easeOut(duration: 0.3)) {
@@ -39,19 +40,15 @@ class AIViewModel: ObservableObject {
     }
     
     func sendMessage() {
-        print("🟢 DEBUG: sendMessage() called")
         guard !isProcessing else { 
-            print("🟡 DEBUG: sendMessage() blocked - isProcessing is true")
             return 
         }
         
         let message = currentInput.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !message.isEmpty else { 
-            print("🟡 DEBUG: sendMessage() blocked - message is empty")
             return 
         }
         
-        print("🟢 DEBUG: sendMessage() proceeding with message: '\(message.prefix(30))...'")
         currentInput = ""
         isProcessing = true
         
@@ -80,17 +77,24 @@ class AIViewModel: ObservableObject {
             
             var fullResponse = ""
             var hasReceivedContent = false
+            var chunkCount = 0
+            
+            print("🚀 [AIViewModel] Starting to process stream...")
             
             // Process chunks with smooth animation - no throttling needed
             for await chunk in controlledStream {
-                print("🟡 DEBUG: AIViewModel received chunk: '\(chunk.prefix(30))...' (\(chunk.count) chars)")
+                chunkCount += 1
                 fullResponse += chunk
                 hasReceivedContent = true
                 
+                print("📦 [AIViewModel] Chunk #\(chunkCount): \"\(chunk)\" (total length now: \(fullResponse.count))")
+                
                 // Update UI immediately with animation
                 await updateAssistantMessage(content: fullResponse)
-                print("🟡 DEBUG: Updated UI with \(fullResponse.count) total chars")
             }
+            
+            print("🏁 [AIViewModel] Stream ended. Total chunks: \(chunkCount), final length: \(fullResponse.count)")
+            print("📄 [AIViewModel] Final content: \"\(fullResponse)\"")
             
             // Final update to ensure complete message is shown
             await updateAssistantMessage(content: fullResponse)
@@ -100,7 +104,6 @@ class AIViewModel: ObservableObject {
                 if !hasReceivedContent {
                     if let lastMessage = messages.last, lastMessage.role == "assistant", lastMessage.content.isEmpty {
                         messages.removeLast()
-                        print("⚠️ Stream failed: No content received, removed placeholder message")
                     }
                 }
                 

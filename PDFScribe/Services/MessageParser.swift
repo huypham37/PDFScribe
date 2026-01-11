@@ -1,5 +1,12 @@
 import Foundation
 
+struct MarkdownSection: Identifiable {
+    let id = UUID()
+    let title: String?
+    let content: String
+    let level: Int
+}
+
 struct ParsedMessage {
     enum Block: Identifiable {
         case text(String)
@@ -9,6 +16,12 @@ struct ParsedMessage {
     }
     
     let blocks: [Block]
+    let references: [String]
+}
+
+struct StructuredMessage {
+    let summary: String?
+    let sections: [MarkdownSection]
     let references: [String]
 }
 
@@ -32,6 +45,93 @@ class MessageParser {
         }
         
         return ParsedMessage(blocks: processedBlocks, references: references)
+    }
+    
+    // MARK: - Section Parsing
+    
+    func parseIntoSections(_ rawMessage: String) -> StructuredMessage {
+        var references: [String] = []
+        var referenceMap: [String: Int] = [:]
+        
+        // Extract citations first
+        let contentWithCitations = extractCitations(from: rawMessage, references: &references, referenceMap: &referenceMap)
+        
+        // Parse sections by ## headers
+        let sections = splitIntoSections(contentWithCitations)
+        
+        // Separate summary from sections
+        let summary: String?
+        let namedSections: [MarkdownSection]
+        
+        if let firstSection = sections.first, firstSection.title == nil {
+            summary = firstSection.content.trimmingCharacters(in: .whitespacesAndNewlines)
+            namedSections = Array(sections.dropFirst())
+        } else {
+            summary = nil
+            namedSections = sections
+        }
+        
+        return StructuredMessage(
+            summary: summary,
+            sections: namedSections,
+            references: references
+        )
+    }
+    
+    private func splitIntoSections(_ text: String) -> [MarkdownSection] {
+        var sections: [MarkdownSection] = []
+        
+        // Pattern: Match ## or ### headers at start of line
+        let pattern = "^(#{2,3})\\s+(.+)$"
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.anchorsMatchLines]) else {
+            return [MarkdownSection(title: nil, content: text, level: 0)]
+        }
+        
+        let matches = regex.matches(in: text, options: [], range: NSRange(text.startIndex..., in: text))
+        
+        if matches.isEmpty {
+            // No headers found - return entire text as single section
+            return [MarkdownSection(title: nil, content: text, level: 0)]
+        }
+        
+        var lastIndex = text.startIndex
+        
+        for (index, match) in matches.enumerated() {
+            guard let matchRange = Range(match.range, in: text),
+                  let levelRange = Range(match.range(at: 1), in: text),
+                  let titleRange = Range(match.range(at: 2), in: text) else {
+                continue
+            }
+            
+            // Add content before this header as a section (summary if first)
+            if matchRange.lowerBound > lastIndex {
+                let content = String(text[lastIndex..<matchRange.lowerBound])
+                if !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    sections.append(MarkdownSection(title: nil, content: content, level: 0))
+                }
+            }
+            
+            // Extract header info
+            let level = text[levelRange].count
+            let title = String(text[titleRange])
+            
+            // Find content until next header or end
+            let contentStart = text.index(after: matchRange.upperBound)
+            let contentEnd: String.Index
+            
+            if index + 1 < matches.count, let nextMatchRange = Range(matches[index + 1].range, in: text) {
+                contentEnd = nextMatchRange.lowerBound
+            } else {
+                contentEnd = text.endIndex
+            }
+            
+            let content = String(text[contentStart..<contentEnd])
+            sections.append(MarkdownSection(title: title, content: content, level: level))
+            
+            lastIndex = contentEnd
+        }
+        
+        return sections
     }
     
     private func splitIntoBlocks(_ text: String) -> [ParsedMessage.Block] {

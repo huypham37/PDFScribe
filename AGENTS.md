@@ -23,6 +23,15 @@ The app drives its research capabilities using **OpenCode**, a local AI service.
 
 - Always following the liquid glass guidelines at @assets/liquid-glass-doc
 - only use build without debug. report to user if build failed to enable debugging.
+-
+
+## Guidelines when working with Frontend:
+
+- When working with new windows, always provides a wireframes before executing. 
+- I ask you to break view into modular components instead putting everything into a single, massive file. 
+
+
+
 ## Liquid Glass Implementation (macOS 26+)
 
 **Quick Reference:**
@@ -98,7 +107,110 @@ func example() {
 
 - always use gh issue list --limit 20 for listing issues
 
+## Project Structure
 
+```
+PDFScribe/
+├── PDFScribe/
+│   ├── Assets.xcassets/
+│   │   ├── AppIcon.appiconset/
+│   │   ├── nasa-background.imageset/
+│   │   └── [ColorSets]
+│   ├── Model/
+│   │   ├── AppState.swift
+│   │   ├── AIModel.swift
+│   │   ├── AgentMode.swift
+│   │   ├── ChatSession.swift
+│   │   ├── FileItem.swift
+│   │   ├── ToolCall.swift
+│   │   └── OpenCodeConfigLoader.swift
+│   ├── Services/
+│   │   ├── AIService.swift
+│   │   ├── FileService.swift
+│   │   ├── StreamController.swift
+│   │   ├── MessageParser.swift
+│   │   ├── ReportExportService.swift
+│   │   ├── Infrastructure/
+│   │   │   ├── ProcessManager.swift
+│   │   │   └── JSONRPCClient.swift
+│   │   └── Strategies/
+│   │       ├── AIProviderStrategy.swift
+│   │       ├── OpenCodeStrategy.swift
+│   │       ├── OpenAIStrategy.swift
+│   │       └── AnthropicStrategy.swift
+│   ├── View/
+│   │   ├── MainSplitView.swift
+│   │   ├── Components/
+│   │   │   ├── FloatingInputView.swift
+│   │   │   ├── ResearchDocumentView.swift
+│   │   │   ├── MarkdownTextView.swift
+│   │   │   └── LuxuryMarkdownTheme.swift
+│   │   ├── Sidebar/
+│   │   │   └── SidebarView.swift
+│   │   ├── Settings/
+│   │   │   └── AISettingsView.swift
+│   │   └── Modifiers/
+│   │       └── View+GlassEffect.swift
+│   ├── ViewModel/
+│   │   ├── AppViewModel.swift
+│   │   ├── AIViewModel.swift
+│   │   ├── PDFViewModel.swift
+│   │   └── EditorViewModel.swift
+│   ├── PDFScribeApp.swift
+│   └── PDFScribe.entitlements
+├── PDFScribeTests/
+├── PDFScribeUITests/
+├── Package.swift
+├── PDFScribe.xcodeproj/
+├── AGENTS.md
+├── README.md
+├── assets/
+│   └── liquid-glass-doc
+├── zed/
+└── .opencode/
+```
+
+### File Explanations
+
+**Model/**
+- `AppState.swift` - Persisted app state across sessions (project URL, sidebar mode)
+- `AIModel.swift` - AI model and mode configurations
+- `AgentMode.swift` - OpenCode agent modes (build/plan/explore)
+- `ChatSession.swift` - Chat session and stored message structures
+- `FileItem.swift` - File tree node structure
+- `ToolCall.swift` - Agent tool execution tracking
+- `OpenCodeConfigLoader.swift` - OpenCode config file parser
+
+**Services/**
+- `AIService.swift` - Main AI orchestration and session management
+- `FileService.swift` - File I/O and chat history persistence
+- `StreamController.swift` - Text streaming animation controller
+- `MessageParser.swift` - Markdown and citation parsing
+- `ReportExportService.swift` - Export chat to Markdown/PDF
+- `ProcessManager.swift` - Subprocess lifecycle management
+- `JSONRPCClient.swift` - JSON-RPC 2.0 protocol implementation
+- `OpenCodeStrategy.swift` - ACP protocol implementation
+- `OpenAIStrategy.swift` - OpenAI API provider
+- `AnthropicStrategy.swift` - Claude API provider
+
+**View/**
+- `MainSplitView.swift` - Root NavigationSplitView layout
+- `FloatingInputView.swift` - Centered input for empty state
+- `ResearchDocumentView.swift` - Editorial document layout
+- `MarkdownTextView.swift` - Markdown renderer
+- `LuxuryMarkdownTheme.swift` - Custom Markdown styling
+- `SidebarView.swift` - Navigation sidebar
+- `AISettingsView.swift` - Provider/API key configuration
+- `View+GlassEffect.swift` - Liquid Glass fallback modifier
+
+**ViewModel/**
+- `AppViewModel.swift` - Project/file/session state
+- `AIViewModel.swift` - Chat, messages, tool calls state
+- `PDFViewModel.swift` - PDF document and selection state
+- `EditorViewModel.swift` - Markdown editor state
+
+Dependencies: 
+- markdownUI
 
 
 

@@ -90,7 +90,6 @@ class AppViewModel: ObservableObject {
                 }
             }
         } catch {
-            print("Error scanning directory: \(error)")
         }
         
         // Sort: Folders first, then files
@@ -110,7 +109,6 @@ class AppViewModel: ObservableObject {
             try FileManager.default.createDirectory(at: newFolderURL, withIntermediateDirectories: false)
             refreshProject()
         } catch {
-            print("Failed to create folder: \(error)")
         }
     }
     
