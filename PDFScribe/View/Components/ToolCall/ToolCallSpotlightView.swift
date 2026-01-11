@@ -18,15 +18,15 @@ struct ToolCallSpotlightView: View {
     /// Returns the current running tool, or the most recently completed tool if none are running
     private var currentActiveTool: ToolCall? {
         // First, check for a running tool
-        if let running = viewModel.toolCalls.first(where: { $0.status == .running }) {
+        if let running = viewModel.currentToolCalls.first(where: { $0.status == .running }) {
             return running
         }
         // If no running tool, show the last tool (most recent)
-        return viewModel.toolCalls.last
+        return viewModel.currentToolCalls.last
     }
     
     private var currentRunningTool: ToolCall? {
-        viewModel.toolCalls.first(where: { $0.status == .running })
+        viewModel.currentToolCalls.first(where: { $0.status == .running })
     }
     
     @ViewBuilder

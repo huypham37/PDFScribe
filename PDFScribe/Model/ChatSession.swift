@@ -1,16 +1,18 @@
 import Foundation
 
-struct StoredMessage: Codable, Identifiable {
+struct StoredMessage: Codable, Identifiable, Equatable {
     let id: String
     let role: String // "user" or "assistant"
     let content: String
     let timestamp: Date
+    var toolCalls: [ToolCall] // Tool calls associated with this message
     
-    init(id: String = UUID().uuidString, role: String, content: String, timestamp: Date = Date()) {
+    init(id: String = UUID().uuidString, role: String, content: String, timestamp: Date = Date(), toolCalls: [ToolCall] = []) {
         self.id = id
         self.role = role
         self.content = content
         self.timestamp = timestamp
+        self.toolCalls = toolCalls
     }
 }
 

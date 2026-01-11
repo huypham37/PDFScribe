@@ -6,7 +6,7 @@ class AIViewModel: ObservableObject {
     @Published var messages: [StoredMessage] = []
     @Published var currentInput: String = ""
     @Published var isProcessing: Bool = false
-    @Published var toolCalls: [ToolCall] = []
+    @Published var currentToolCalls: [ToolCall] = [] // Tool calls for current query only
     
     private let aiService: AIService
     private let streamController = StreamController()
@@ -51,7 +51,7 @@ class AIViewModel: ObservableObject {
         
         currentInput = ""
         isProcessing = true
-        toolCalls.removeAll()  // Clear previous tool calls for new query
+        currentToolCalls.removeAll()  // Clear previous tool calls for new query
         
         // Add user message immediately
         let userMessage = StoredMessage(role: "user", content: message)
@@ -106,6 +106,11 @@ class AIViewModel: ObservableObject {
                     if let lastMessage = messages.last, lastMessage.role == "assistant", lastMessage.content.isEmpty {
                         messages.removeLast()
                     }
+                } else {
+                    // Save tool calls to the assistant message
+                    if let lastIndex = messages.indices.last, messages[lastIndex].role == "assistant" {
+                        messages[lastIndex].toolCalls = currentToolCalls
+                    }
                 }
                 
                 isProcessing = false
@@ -118,30 +123,29 @@ class AIViewModel: ObservableObject {
 extension AIViewModel: ToolCallHandler {
     func addToolCall(id: String, name: String, query: String, toolType: ToolCall.ToolType) {
         let tool = ToolCall(id: id, name: name, query: query, status: .running, toolType: toolType)
-        toolCalls.append(tool)
+        currentToolCalls.append(tool)
     }
     
     func updateToolCall(id: String, status: ToolCall.Status) {
-        if let index = toolCalls.firstIndex(where: { $0.id == id }) {
-            toolCalls[index].status = status
-            // Set end time when completed/failed/cancelled
+        if let index = currentToolCalls.firstIndex(where: { $0.id == id }) {
+            currentToolCalls[index].status = status
             if status == .completed || status == .failed || status == .cancelled {
-                toolCalls[index].endTime = Date()
+                currentToolCalls[index].endTime = Date()
             }
         }
     }
     
     func updateToolCallTitle(id: String, title: String) {
-        if let index = toolCalls.firstIndex(where: { $0.id == id }) {
-            toolCalls[index].name = title
+        if let index = currentToolCalls.firstIndex(where: { $0.id == id }) {
+            currentToolCalls[index].name = title
         }
     }
     
     func updateToolCallQuery(id: String, query: String) {
-        if let index = toolCalls.firstIndex(where: { $0.id == id }) {
+        if let index = currentToolCalls.firstIndex(where: { $0.id == id }) {
             // Only update if we have a more meaningful query
-            if !query.isEmpty && toolCalls[index].query != query {
-                toolCalls[index].query = query
+            if !query.isEmpty && currentToolCalls[index].query != query {
+                currentToolCalls[index].query = query
             }
         }
     }

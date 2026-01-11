@@ -1,28 +1,28 @@
 import Foundation
 import SwiftUI
 
-struct ToolCall: Identifiable {
+struct ToolCall: Identifiable, Codable, Equatable {
     let id: String
-    var name: String           // Raw tool name (e.g., "read", "bash", "glob")
-    var query: String          // What the tool is doing (file path, command, etc.)
+    var name: String
+    var query: String
     var status: Status
     var toolType: ToolType
     var startTime: Date
     var endTime: Date?
     
-    enum Status {
+    enum Status: String, Codable {
         case running      // Tool is executing
         case completed
         case failed
         case cancelled
     }
     
-    enum ToolType {
-        case search      // glob, grep
-        case code        // bash
-        case file        // read, write, edit
-        case web         // webfetch
-        case delegate    // task (sub-agent)
+    enum ToolType: String, Codable {
+        case search
+        case code
+        case file
+        case web
+        case delegate
         case unknown
     }
     
