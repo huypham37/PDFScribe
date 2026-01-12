@@ -51,12 +51,12 @@ private struct CitationPill: View {
         Button(action: action) {
             Text("\(number)")
                 .font(.system(size: 11, weight: .medium))
-                .foregroundColor(Color(nsColor: NSColor(white: 0.4, alpha: 1.0)))
+                .foregroundColor(.brandPrimary)
                 .frame(width: 22, height: 22)
-                .background(isHovered ? Color(nsColor: NSColor(white: 0.85, alpha: 1.0)) : Color(nsColor: NSColor(white: 0.92, alpha: 1.0)))
+                .background(isHovered ? Color.brandBackgroundSecondary : Color.brandBackground)
                 .overlay(
                     RoundedRectangle(cornerRadius: 4)
-                        .stroke(Color(nsColor: NSColor(white: 0.7, alpha: 1.0)), lineWidth: 1)
+                        .stroke(Color.brandSecondary.opacity(0.3), lineWidth: 1)
                 )
                 .clipShape(RoundedRectangle(cornerRadius: 4))
         }

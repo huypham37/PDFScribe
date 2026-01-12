@@ -45,7 +45,7 @@ struct EditorialResponseView: View {
                         // Divider between sections (except last)
                         if index < structured.sections.count - 1 {
                             Divider()
-                                .background(Color(nsColor: NSColor(white: 0.9, alpha: 1.0)))
+                                .background(Color.brandBackgroundSecondary)
                                 .padding(.top, 20)
                         }
                     }

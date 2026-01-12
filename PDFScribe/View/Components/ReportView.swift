@@ -25,7 +25,7 @@ struct ReportView: View {
                                 // Divider between sections (except after last)
                                 if index + 2 < aiViewModel.messages.count {
                                     Divider()
-                                        .background(Color(nsColor: NSColor(white: 0.9, alpha: 1.0)))
+                                        .background(Color.brandBackgroundSecondary)
                                         .frame(height: 1)
                                         .padding(.horizontal, contentPadding)
                                         .padding(.vertical, 60)
@@ -71,7 +71,7 @@ struct PremiumQuerySection: View {
             // User query - clean typography
             Text(query.content)
                 .font(.system(size: 17))
-                .foregroundColor(Color(nsColor: NSColor(white: 0.1, alpha: 1.0)))
+                .foregroundColor(.brandText)
                 .multilineTextAlignment(.leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .textSelection(.enabled)
@@ -103,7 +103,7 @@ struct PremiumQuerySectionWithTools: View {
             // User query
             Text(query.content)
                 .font(.system(size: 17))
-                .foregroundColor(Color(nsColor: NSColor(white: 0.1, alpha: 1.0)))
+                .foregroundColor(.brandText)
                 .multilineTextAlignment(.leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .textSelection(.enabled)
@@ -159,7 +159,7 @@ struct FloatingInput: View {
             }) {
                 Image(systemName: "arrow.up.circle.fill")
                     .font(.system(size: 28))
-                    .foregroundColor(aiViewModel.currentInput.isEmpty || aiViewModel.isProcessing ? .gray : Color("SlateIndigo"))
+                    .foregroundColor(aiViewModel.currentInput.isEmpty || aiViewModel.isProcessing ? .gray : .brandAccent)
             }
             .buttonStyle(.plain)
             .disabled(aiViewModel.currentInput.isEmpty || aiViewModel.isProcessing)

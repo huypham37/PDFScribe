@@ -8,7 +8,7 @@ struct FloatingInputView: View {
             // Large centered icon (Perplexity logo placeholder)
             Image(systemName: "sparkles")
                 .font(.system(size: 64))
-                .foregroundColor(Color("SlateIndigo"))
+                .foregroundColor(.brandPrimary)
                 .padding(.bottom, 32)
             
             // Input container with glass effect
@@ -23,7 +23,7 @@ struct FloatingInputView: View {
                 }) {
                     Image(systemName: "arrow.up.circle.fill")
                         .font(.system(size: 28))
-                        .foregroundColor(aiViewModel.currentInput.isEmpty ? .gray : Color("SlateIndigo"))
+                        .foregroundColor(aiViewModel.currentInput.isEmpty ? .gray : .brandAccent)
                 }
                 .buttonStyle(.plain)
                 .disabled(aiViewModel.currentInput.isEmpty)
