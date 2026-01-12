@@ -19,11 +19,11 @@ struct ToolCallCard: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(tool.metadata.displayName)
                         .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(.primary)
+                        .foregroundColor(.brandText)
                     
                     Text(tool.name)
                         .font(.system(size: 11, weight: .regular))
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.brandSecondary)
                         .fontDesign(.monospaced)
                 }
                 
@@ -39,20 +39,20 @@ struct ToolCallCard: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text("QUERY")
                     .font(.system(size: 10, weight: .semibold))
-                    .foregroundColor(.secondary)
+                    .foregroundColor(.brandSecondary)
                     .tracking(0.5)
                 
                 Text(tool.query)
                     .font(.system(size: 13))
                     .fontDesign(.monospaced)
-                    .foregroundColor(.primary)
+                    .foregroundColor(.brandText)
                     .padding(12)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color(nsColor: .controlBackgroundColor))
+                    .background(.brandBackground)
                     .clipShape(RoundedRectangle(cornerRadius: 6))
                     .overlay(
                         RoundedRectangle(cornerRadius: 6)
-                            .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 1)
+                            .strokeBorder(.brandBackgroundSecondary, lineWidth: 1)
                     )
             }
             .padding(16)
@@ -62,13 +62,13 @@ struct ToolCallCard: View {
                 progressBar
             }
         }
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(.brandBackground)
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .overlay(
             RoundedRectangle(cornerRadius: 12)
                 .strokeBorder(borderColor, lineWidth: 2)
         )
-        .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
+        .shadow(color: Color.brandPrimary.opacity(0.08), radius: 8, x: 0, y: 4)
     }
     
     @ViewBuilder
@@ -108,11 +108,11 @@ struct ToolCallCard: View {
         case .cancelled:
             HStack(spacing: 6) {
                 Image(systemName: "xmark.circle")
-                    .foregroundColor(.secondary)
+                    .foregroundColor(.brandSecondary)
                 
                 Text("Cancelled")
                     .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(.secondary)
+                    .foregroundColor(.brandSecondary)
             }
         }
     }
@@ -126,7 +126,7 @@ struct ToolCallCard: View {
         case .failed:
             return Color.red.opacity(0.05)
         default:
-            return Color(nsColor: .controlBackgroundColor)
+            return .brandBackgroundSecondary
         }
     }
     
@@ -139,7 +139,7 @@ struct ToolCallCard: View {
         case .failed:
             return Color.red.opacity(0.4)
         default:
-            return Color(nsColor: .separatorColor)
+            return .brandBackgroundSecondary
         }
     }
     
@@ -148,7 +148,7 @@ struct ToolCallCard: View {
             ZStack(alignment: .leading) {
                 // Background
                 Rectangle()
-                    .fill(Color(nsColor: .controlBackgroundColor))
+                    .fill(.brandBackgroundSecondary)
                 
                 // Progress (animated)
                 Rectangle()

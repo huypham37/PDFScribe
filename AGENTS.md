@@ -119,9 +119,18 @@ PDFScribe/
 │   │   │   └── Contents.json
 │   │   ├── AppIcon.appiconset/
 │   │   │   └── Contents.json
+│   │   ├── BrandAccent.colorset/
+│   │   │   └── Contents.json
 │   │   ├── BrandBackground.colorset/
+│   │   │   └── Contents.json
+│   │   ├── BrandBackgroundSecondary.colorset/
+│   │   │   └── Contents.json
 │   │   ├── BrandPrimary.colorset/
+│   │   │   └── Contents.json
 │   │   ├── BrandSecondary.colorset/
+│   │   │   └── Contents.json
+│   │   ├── BrandText.colorset/
+│   │   │   └── Contents.json
 │   │   ├── Contents.json
 │   │   ├── PaperWhite.colorset/
 │   │   │   └── Contents.json
