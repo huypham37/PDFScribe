@@ -28,7 +28,7 @@ struct ReportView: View {
                                         .background(Color.brandBackgroundSecondary)
                                         .frame(height: 1)
                                         .padding(.horizontal, contentPadding)
-                                        .padding(.vertical, 60)
+                                        .padding(.vertical, 24)
                                 }
                             }
                         }
@@ -75,7 +75,7 @@ struct PremiumQuerySection: View {
                 .multilineTextAlignment(.leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .textSelection(.enabled)
-                .padding(.top, 48)
+                .padding(.top, 32)
                 .padding(.bottom, 32)
                 .padding(.horizontal, contentPadding)
             
@@ -83,7 +83,7 @@ struct PremiumQuerySection: View {
             if let response = response {
                 EditorialResponseView(message: response, modelName: "AI Assistant")
                     .padding(.horizontal, contentPadding)
-                    .padding(.bottom, 48)
+                    .padding(.bottom, 32)
             }
         }
         .frame(maxWidth: .infinity)
@@ -107,7 +107,7 @@ struct PremiumQuerySectionWithTools: View {
                 .multilineTextAlignment(.leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .textSelection(.enabled)
-                .padding(.top, 48)
+                .padding(.top, 32)
                 .padding(.bottom, 32)
                 .padding(.horizontal, contentPadding)
             
@@ -135,7 +135,7 @@ struct PremiumQuerySectionWithTools: View {
             if let response = response {
                 EditorialResponseView(message: response, modelName: "AI Assistant")
                     .padding(.horizontal, contentPadding)
-                    .padding(.bottom, 48)
+                    .padding(.bottom, 32)
             }
         }
         .frame(maxWidth: .infinity)
