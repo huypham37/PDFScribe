@@ -81,7 +81,7 @@ extension Theme {
                     .padding(.vertical, 8)
                     .overlay(
                         Rectangle()
-                            .fill(Color.accentColor.opacity(0.3))
+                            .fill(Color.brandPrimary.opacity(0.3))
                             .frame(width: 4),
                         alignment: .leading
                     )
@@ -89,7 +89,7 @@ extension Theme {
             }
             // Links
             .link {
-                ForegroundColor(.accentColor)
+                ForegroundColor(.brandPrimary)
             }
             // Strong/Bold
             .strong {

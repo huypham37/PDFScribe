@@ -120,7 +120,7 @@ struct ToolCallTimelineView: View {
                         .foregroundColor(.white)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
-                        .background(Color.blue)
+                        .background(Color.brandAccent)
                         .clipShape(RoundedRectangle(cornerRadius: 6))
                     }
                     
@@ -203,7 +203,7 @@ struct ToolCallTimelineView: View {
             // Header
             HStack(spacing: 12) {
                 Image(systemName: "arrow.triangle.branch")
-                    .foregroundColor(.blue)
+                    .foregroundColor(.brandSecondary)
                 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Execution Flow Diagram")
@@ -230,7 +230,7 @@ struct ToolCallTimelineView: View {
             .padding(16)
             .background(
                 LinearGradient(
-                    colors: [Color.blue.opacity(0.05), Color.purple.opacity(0.05)],
+                    colors: [Color.brandSecondary.opacity(0.05), Color.brandAccent.opacity(0.05)],
                     startPoint: .leading,
                     endPoint: .trailing
                 )

@@ -19,13 +19,13 @@ struct CollapsibleSection: View {
                     Text(section.title ?? "")
                         .font(.custom("Charter", size: 19))
                         .fontWeight(.semibold)
-                        .foregroundColor(Color(nsColor: NSColor(white: 0.1, alpha: 1.0)))
+                        .foregroundColor(.brandText)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .multilineTextAlignment(.leading)
                     
                     Image(systemName: "chevron.right")
                         .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(Color(nsColor: NSColor(white: 0.6, alpha: 1.0)))
+                        .foregroundColor(.brandSecondary)
                         .rotationEffect(.degrees(isExpanded ? 90 : 0))
                         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isExpanded)
                 }

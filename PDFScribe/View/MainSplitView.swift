@@ -13,7 +13,7 @@ struct MainSplitView: View {
         } detail: {
             // Main content area (opaque - the "content is clear" principle)
             ZStack {
-                Color(nsColor: .windowBackgroundColor)
+                Color.brandBackground
                     .ignoresSafeArea()
                 
                 // Chat home view with centered input
@@ -90,7 +90,7 @@ struct MessageBubble: View {
         HStack(alignment: .top, spacing: 12) {
             // Avatar
             Circle()
-                .fill(message.role == "user" ? Color.blue : Color("SlateIndigo"))
+                .fill(message.role == "user" ? Color.brandSecondary : Color.brandPrimary)
                 .frame(width: 32, height: 32)
                 .overlay(
                     Text(message.role == "user" ? "U" : "A")

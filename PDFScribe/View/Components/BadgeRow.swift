@@ -10,9 +10,9 @@ struct BadgeRow: View {
             Badge(
                 icon: "circle",
                 text: modelName,
-                foregroundColor: .gray,
-                backgroundColor: Color(nsColor: NSColor(white: 0.95, alpha: 1.0)),
-                borderColor: Color(nsColor: NSColor(white: 0.85, alpha: 1.0))
+                foregroundColor: .brandSecondary,
+                backgroundColor: .brandBackground,
+                borderColor: .brandBackgroundSecondary
             )
             
             // Sources badge
@@ -20,9 +20,9 @@ struct BadgeRow: View {
                 Badge(
                     icon: "checkmark.circle",
                     text: "\(sourceCount) Source\(sourceCount == 1 ? "" : "s")",
-                    foregroundColor: Color.blue.opacity(0.8),
-                    backgroundColor: Color.blue.opacity(0.08),
-                    borderColor: Color.blue.opacity(0.2)
+                    foregroundColor: .brandPrimary,
+                    backgroundColor: .brandPrimary.opacity(0.08),
+                    borderColor: .brandPrimary.opacity(0.2)
                 )
             }
         }

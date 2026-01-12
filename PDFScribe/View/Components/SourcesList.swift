@@ -9,7 +9,7 @@ struct SourcesList: View {
                 // Section header
                 Text("SOURCES")
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(Color(nsColor: NSColor(white: 0.5, alpha: 1.0)))
+                    .foregroundColor(.brandSecondary)
                     .tracking(1.2)
                     .padding(.bottom, 12)
                 
@@ -43,27 +43,27 @@ private struct SourceItem: View {
                 // Number badge
                 Text("\(number)")
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(Color(nsColor: NSColor(white: 0.5, alpha: 1.0)))
+                    .foregroundColor(.brandSecondary)
                     .frame(width: 28, height: 28)
-                    .background(isHovered ? Color(nsColor: NSColor(white: 0.85, alpha: 1.0)) : Color(nsColor: NSColor(white: 0.92, alpha: 1.0)))
+                    .background(isHovered ? .brandBackgroundSecondary : .brandBackground)
                     .clipShape(RoundedRectangle(cornerRadius: 6))
                 
                 // URL info
                 VStack(alignment: .leading, spacing: 2) {
                     Text(extractTitle(from: url))
                         .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(isHovered ? Color.blue : Color(nsColor: NSColor(white: 0.1, alpha: 1.0)))
+                        .foregroundColor(isHovered ? .brandPrimary : .brandText)
                         .lineLimit(1)
                     
                     Text(extractDomain(from: url))
                         .font(.system(size: 11))
-                        .foregroundColor(Color(nsColor: NSColor(white: 0.5, alpha: 1.0)))
+                        .foregroundColor(.brandSecondary)
                         .lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .padding(10)
-            .background(isHovered ? Color(nsColor: NSColor(white: 0.97, alpha: 1.0)) : Color.clear)
+            .background(isHovered ? .brandBackground : Color.clear)
             .clipShape(RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.plain)
