@@ -10,9 +10,9 @@ struct ToolCallCard: View {
                 // Icon
                 Image(systemName: tool.metadata.iconName)
                     .font(.system(size: 20))
-                    .foregroundColor(tool.metadata.color)
+                    .foregroundColor(.brandText)
                     .frame(width: 40, height: 40)
-                    .background(tool.metadata.color.opacity(0.1))
+                    .background(.brandBackgroundSecondary)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                 
                 // Name and type
@@ -88,11 +88,11 @@ struct ToolCallCard: View {
         case .completed:
             HStack(spacing: 6) {
                 Image(systemName: "checkmark.circle.fill")
-                    .foregroundColor(.green)
+                    .foregroundColor(.brandSecondary)
                 
                 Text("Complete")
                     .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(.green)
+                    .foregroundColor(.brandSecondary)
             }
             
         case .failed:
@@ -122,7 +122,7 @@ struct ToolCallCard: View {
         case .running:
             return tool.metadata.color.opacity(0.05)
         case .completed:
-            return Color.green.opacity(0.05)
+            return .brandBackgroundSecondary
         case .failed:
             return Color.red.opacity(0.05)
         default:
@@ -135,7 +135,7 @@ struct ToolCallCard: View {
         case .running:
             return tool.metadata.color.opacity(0.4)
         case .completed:
-            return Color.green.opacity(0.3)
+            return .brandBackgroundSecondary
         case .failed:
             return Color.red.opacity(0.4)
         default:
