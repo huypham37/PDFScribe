@@ -1,9 +1,11 @@
 import Foundation
 
+@MainActor
 protocol ToolCallHandler: AnyObject {
-    func addToolCall(id: String, title: String)
+    func addToolCall(id: String, name: String, query: String, toolType: ToolCall.ToolType)
     func updateToolCall(id: String, status: ToolCall.Status)
     func updateToolCallTitle(id: String, title: String)
+    func updateToolCallQuery(id: String, query: String)
 }
 
 class OpenCodeStrategy: AIProviderStrategy {
@@ -11,15 +13,18 @@ class OpenCodeStrategy: AIProviderStrategy {
     private let workingDirectory: String
     private var processManager: ProcessManager?
     private var rpcClient: JSONRPCClient?
-    private var sessionId: String?
+    private var sessionId: String? // OpenCode's internal session ID (not used for our persistence)
     private var isInitialized = false
-    private var accumulatedResponse = ""
     private var availableModelsList: [AIModel] = []
     private var availableModesList: [AIMode] = []
     private var selectedModel: AIModel?
     private var selectedMode: AIMode?
     private var activeDelegationId: String? = nil  // Track when main agent delegates to sub-agent
     weak var toolCallHandler: ToolCallHandler?
+    
+    // Streaming support
+    private var streamContinuation: AsyncThrowingStream<String, Error>.Continuation?
+    private var streamCompletionTask: Task<Void, Never>? = nil
     
     init(binaryPath: String, workingDirectory: String? = nil) {
         self.binaryPath = binaryPath
@@ -28,38 +33,163 @@ class OpenCodeStrategy: AIProviderStrategy {
     
     func connect() async throws {
         guard !isInitialized else {
-            print("OpenCode already connected")
             return
         }
         
-        print("Proactively connecting to OpenCode...")
         try await initialize()
-        print("Creating session with default model/mode...")
         try await createSession()
-        print("OpenCode connection established - sessionId: \(sessionId ?? "nil")")
     }
     
-    func send(message: String, context: AIContext) async throws -> String {
-        let sendStartTime = Date()
-        print("OpenCodeStrategy.send() called - isInitialized: \(isInitialized), sessionId: \(sessionId ?? "nil")")
-        
-        // Reset delegation state for new user turn
-        activeDelegationId = nil
-        
-        if !isInitialized {
-            print("Initializing OpenCode...")
-            try await initialize()
-            print("Creating session...")
-            try await createSession()
+    func sendStream(message: String, context: AIContext) -> AsyncThrowingStream<String, Error> {
+        return AsyncThrowingStream { continuation in
+            Task { @MainActor in
+                self.streamContinuation = continuation
+                
+                do {
+                    // Reset delegation state for new user turn
+                    self.activeDelegationId = nil
+                    
+                    if !self.isInitialized {
+                        try await self.initialize()
+                        try await self.createSession()
+                    }
+                    
+                    guard let sessionId = self.sessionId else {
+                        self.streamContinuation?.finish(throwing: AIError.serverError("No active session"))
+                        self.streamContinuation = nil
+                        return
+                    }
+                    
+                    try await self.sendPromptStreaming(sessionId: sessionId, message: message, context: context)
+                } catch {
+                    self.streamContinuation?.finish(throwing: error)
+                    self.streamContinuation = nil
+                }
+            }
+        }
+    }
+    
+    @MainActor
+    private func sendPromptStreaming(sessionId: String, message: String, context: AIContext) async throws {
+        guard let rpcClient = rpcClient,
+              let processManager = processManager else {
+            throw AIError.serverError("Client not initialized")
         }
         
-        print("[TIMING] Initialization/session took: \(Date().timeIntervalSince(sendStartTime))s")
+        var contentBlocks: [[String: Any]] = []
         
-        guard let sessionId = sessionId else {
-            throw AIError.serverError("No active session")
+        // Add user message
+        contentBlocks.append(["type": "text", "text": message])
+        
+        // Add current note file as resource if available
+        if let fileURL = context.currentFile,
+           let content = context.currentFileContent {
+            let mimeType = fileURL.pathExtension == "md" ? "text/markdown" : "text/plain"
+            contentBlocks.append([
+                "type": "resource",
+                "resource": [
+                    "uri": fileURL.absoluteString,
+                    "mimeType": mimeType,
+                    "text": content
+                ]
+            ])
         }
         
-        return try await sendPrompt(sessionId: sessionId, message: message, context: context)
+        // Add referenced files as resources
+        for fileURL in context.referencedFiles {
+            if let content = try? String(contentsOf: fileURL, encoding: .utf8) {
+                let mimeType: String
+                let ext = fileURL.pathExtension.lowercased()
+                switch ext {
+                case "md":
+                    mimeType = "text/markdown"
+                case "pdf":
+                    mimeType = "application/pdf"
+                default:
+                    mimeType = "text/plain"
+                }
+                
+                contentBlocks.append([
+                    "type": "resource",
+                    "resource": [
+                        "uri": fileURL.absoluteString,
+                        "mimeType": mimeType,
+                        "text": content
+                    ]
+                ])
+            }
+        }
+        
+        // Add editor selection if available
+        if let selection = context.selection, !selection.isEmpty {
+            contentBlocks.append([
+                "type": "text",
+                "text": "Selected text from editor:\n\(selection)"
+            ])
+        }
+        
+        // Add PDF selection if available
+        if let pdfSelection = context.pdfSelection, !pdfSelection.isEmpty {
+            let pageInfo = context.pdfPage.map { " (Page \($0))" } ?? ""
+            contentBlocks.append([
+                "type": "text",
+                "text": "Selected text from PDF\(pageInfo):\n\(pdfSelection)"
+            ])
+        }
+        
+        let params: [String: Any] = [
+            "sessionId": sessionId,
+            "prompt": contentBlocks
+        ]
+        
+        let (requestId, requestData) = try rpcClient.createRequest(method: "session/prompt", params: params)
+        try processManager.write(requestData)
+        
+        let response = try await rpcClient.awaitResponse(forRequestId: requestId)
+        
+        guard response.error == nil else {
+            let errorMsg = response.error?.message ?? "Unknown error"
+            throw AIError.serverError(errorMsg)
+        }
+        
+        // Check if response contains stopReason
+        if let result = response.result?.value as? [String: Any],
+           let stopReason = result["stopReason"] as? String {
+            print("✅ [OpenCodeStrategy] Prompt request completed with stopReason: \(stopReason)")
+            
+            // Schedule delayed stream completion to allow buffered notifications to be processed
+            // The notification handler will cancel this if agent_message_complete arrives
+            scheduleStreamCompletion(delay: 0.1) // 100ms buffer
+        } else {
+            print("✅ [OpenCodeStrategy] Prompt request completed, waiting for notification events...")
+        }
+    }
+    
+    @MainActor
+    private func scheduleStreamCompletion(delay: TimeInterval) {
+        // Cancel any existing scheduled completion
+        streamCompletionTask?.cancel()
+        
+        print("⏰ [OpenCodeStrategy] Scheduling stream completion in \(delay)s...")
+        streamCompletionTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            
+            guard !Task.isCancelled else {
+                print("❌ [OpenCodeStrategy] Scheduled completion was cancelled")
+                return
+            }
+            
+            print("⏱️ [OpenCodeStrategy] Delay elapsed, finishing stream now")
+            finishStream()
+        }
+    }
+    
+    @MainActor
+    private func finishStream() {
+        streamCompletionTask?.cancel()
+        streamCompletionTask = nil
+        streamContinuation?.finish()
+        streamContinuation = nil
     }
     
     private func initialize() async throws {
@@ -134,12 +264,6 @@ class OpenCodeStrategy: AIProviderStrategy {
         
         self.sessionId = sessionId
         
-        // Debug: print the full response to see structure
-        if let jsonData = try? JSONSerialization.data(withJSONObject: result, options: .prettyPrinted),
-           let jsonString = String(data: jsonData, encoding: .utf8) {
-            print("OpenCode session/new response: \(jsonString)")
-        }
-        
         // Parse available models (try both camelCase and snake_case)
         if let modelsData = result["models"] as? [String: Any] {
             let availableModels = (modelsData["availableModels"] as? [[String: Any]]) 
@@ -179,186 +303,152 @@ class OpenCodeStrategy: AIProviderStrategy {
             }
         }
         
-        print("[DEFAULT] Available models: \(availableModelsList.map { $0.id }.joined(separator: ", "))")
-        print("[DEFAULT] Available modes: \(availableModesList.map { $0.id }.joined(separator: ", "))")
-        
-        // Set default model to github-copilot/gemini-3-pro-preview if available
-        if let preferredModel = availableModelsList.first(where: { $0.id == "github-copilot/gemini-3-pro-preview" }) {
-            print("[DEFAULT] Setting default model to github-copilot/gemini-3-pro-preview")
+        // Set default model to github-copilot/claude-sonnet-4.5 if available
+        if let preferredModel = availableModelsList.first(where: { $0.id == "github-copilot/claude-sonnet-4.5" }) {
             try await selectModel(preferredModel)
-            print("[DEFAULT] Model set successfully - current: \(selectedModel?.id ?? "none")")
         } else {
-            print("[DEFAULT] github-copilot/gemini-3-pro-preview not available in models list")
-        }
-        
-        // Set default mode to research-leader if available
-        if let preferredMode = availableModesList.first(where: { $0.id == "research-leader" }) {
-            print("[DEFAULT] Setting default mode to research-leader")
-            try await selectMode(preferredMode)
-            print("[DEFAULT] Mode set successfully - current: \(selectedMode?.id ?? "none")")
-        } else {
-            print("[DEFAULT] research-leader not available in modes list")
-        }
-    }
-    
-    private func sendPrompt(sessionId: String, message: String, context: AIContext) async throws -> String {
-        guard let rpcClient = rpcClient,
-              let processManager = processManager else {
-            throw AIError.serverError("Client not initialized")
-        }
-        
-        var contentBlocks: [[String: Any]] = []
-        
-        // Add user message
-        contentBlocks.append(["type": "text", "text": message])
-        
-        // Add current note file as resource if available
-        if let fileURL = context.currentFile,
-           let content = context.currentFileContent {
-            let mimeType = fileURL.pathExtension == "md" ? "text/markdown" : "text/plain"
-            contentBlocks.append([
-                "type": "resource",
-                "resource": [
-                    "uri": fileURL.absoluteString,
-                    "mimeType": mimeType,
-                    "text": content
-                ]
-            ])
-        }
-        
-        // Add referenced files as resources
-        for fileURL in context.referencedFiles {
-            if let content = try? String(contentsOf: fileURL, encoding: .utf8) {
-                let mimeType: String
-                let ext = fileURL.pathExtension.lowercased()
-                switch ext {
-                case "md":
-                    mimeType = "text/markdown"
-                case "pdf":
-                    mimeType = "application/pdf"
-                default:
-                    mimeType = "text/plain"
-                }
-                
-                contentBlocks.append([
-                    "type": "resource",
-                    "resource": [
-                        "uri": fileURL.absoluteString,
-                        "mimeType": mimeType,
-                        "text": content
-                    ]
-                ])
+            if let firstModel = availableModelsList.first {
+                try await selectModel(firstModel)
             }
         }
         
-        // Add editor selection if available
-        if let selection = context.selection, !selection.isEmpty {
-            contentBlocks.append([
-                "type": "text",
-                "text": "Selected text from editor:\n\(selection)"
-            ])
+        // Set default mode to build if available
+        if let preferredMode = availableModesList.first(where: { $0.id == "build" }) {
+            try await selectMode(preferredMode)
         }
-        
-        // Add PDF selection if available
-        if let pdfSelection = context.pdfSelection, !pdfSelection.isEmpty {
-            let pageInfo = context.pdfPage.map { " (Page \($0))" } ?? ""
-            contentBlocks.append([
-                "type": "text",
-                "text": "Selected text from PDF\(pageInfo):\n\(pdfSelection)"
-            ])
-        }
-        
-        let params: [String: Any] = [
-            "sessionId": sessionId,
-            "prompt": contentBlocks
-        ]
-        
-        accumulatedResponse = ""
-        
-        let promptStartTime = Date()
-        print("[TIMING] Sending session/prompt request...")
-        let (requestId, requestData) = try rpcClient.createRequest(method: "session/prompt", params: params)
-        try processManager.write(requestData)
-        print("[TIMING] Request sent, waiting for response...")
-        
-        let response = try await rpcClient.awaitResponse(forRequestId: requestId)
-        let promptDuration = Date().timeIntervalSince(promptStartTime)
-        
-        print("[TIMING] session/prompt completed in \(promptDuration)s")
-        print("session/prompt response received - error: \(response.error?.message ?? "none"), accumulated: \(accumulatedResponse.count) chars")
-        
-        guard response.error == nil else {
-            let errorMsg = response.error?.message ?? "Unknown error"
-            throw AIError.serverError(errorMsg)
-        }
-        
-        return accumulatedResponse.isEmpty ? "No response received" : accumulatedResponse
     }
     
     private func handleNotification(_ notification: JSONRPCNotification) {
         guard let params = notification.params?.value as? [String: Any],
               let update = params["update"] as? [String: Any],
               let sessionUpdate = update["sessionUpdate"] as? String else {
+            print("⚠️ [OpenCodeStrategy] Failed to parse notification params")
             return
         }
         
-        guard notification.method == "session/update" else { return }
+        guard notification.method == "session/update" else { 
+            print("ℹ️ [OpenCodeStrategy] Ignoring non-session/update method: \(notification.method)")
+            return 
+        }
         
-        print("[NOTIFICATION] Received update type: \(sessionUpdate)")
+        print("📨 [OpenCodeStrategy] Notification: sessionUpdate=\(sessionUpdate)")
+        print("🔍 [OpenCodeStrategy] Update keys: \(update.keys.sorted())")
+        print("🔍 [OpenCodeStrategy] Full update: \(update)")
+        
         switch sessionUpdate {
         case "agent_message_chunk":
+            // Suppress text chunks while a delegation is active (sub-agent output)
+            if activeDelegationId != nil {
+                print("🚫 [OpenCodeStrategy] Suppressing chunk - delegation active")
+                return
+            }
+            
             if let content = update["content"] as? [String: Any],
                let type = content["type"] as? String,
                type == "text",
                let text = content["text"] as? String {
-                accumulatedResponse += text
+                print("📝 [OpenCodeStrategy] Yielding chunk: \"\(text)\" (length: \(text.count))")
+                // Yield chunk to stream on MainActor
+                Task { @MainActor in
+                    self.streamContinuation?.yield(text)
+                }
+            } else {
+                print("⚠️ [OpenCodeStrategy] agent_message_chunk but no text content found")
+            }
+        
+        case "agent_message_complete", "turn_complete", "agent_turn_complete":
+            print("✅ [OpenCodeStrategy] Stream complete notification: \(sessionUpdate)")
+            // Agent finished generating response - finish the stream immediately
+            // Cancel any scheduled delayed completion
+            Task { @MainActor in
+                self.finishStream()
             }
             
-        case "tool_call":
+         case "tool_call":
+            print("🔧 [OpenCodeStrategy] Tool call notification received!")
+            print("🔧 [OpenCodeStrategy] Tool call data: \(update)")
+            
             if let toolCallId = update["toolCallId"] as? String,
                let title = update["title"] as? String,
                let kind = update["kind"] as? String {
                 
+                print("🔧 [OpenCodeStrategy] Tool call: id=\(toolCallId), name=\(title), query=\(kind)")
+                
                 // If a delegation is active, ignore all subsequent tool calls (they're from sub-agent)
                 if activeDelegationId != nil {
+                    print("🚫 [OpenCodeStrategy] Suppressing tool call - delegation active")
                     return
                 }
+                
+                // Infer tool type from name
+                let toolType = ToolCall.inferToolType(from: title)
                 
                 // Check if this is a delegation (task tool)
                 if title == "task" {
                     // Mark that we're now delegating
                     activeDelegationId = toolCallId
                     
-                    // Format display title
-                    var displayTitle = "Delegate: \(kind)"
+                    // Extract subagent type for display
+                    var subagentType = kind
                     if let rawInput = update["rawInput"] as? [String: Any],
-                       let subagentType = rawInput["subagent_type"] as? String {
-                        displayTitle = "Delegate: \(subagentType)"
+                       let type = rawInput["subagent_type"] as? String {
+                        subagentType = type
                     }
                     
                     Task { @MainActor in
-                        toolCallHandler?.addToolCall(id: toolCallId, title: displayTitle)
+                        toolCallHandler?.addToolCall(
+                            id: toolCallId,
+                            name: "task",
+                            query: subagentType,
+                            toolType: .delegate
+                        )
                     }
                 } else {
                     // Normal main agent tool call
-                    let displayTitle = "\(title): \(kind)"
+                    // Extract query from rawInput based on tool type
+                    var query = kind
+                    if let rawInput = update["rawInput"] as? [String: Any] {
+                        // Try common field names for the query
+                        if let command = rawInput["command"] as? String {
+                            query = command  // bash tool
+                        } else if let filePath = rawInput["filePath"] as? String {
+                            query = filePath  // read/write/edit tools
+                        } else if let pattern = rawInput["pattern"] as? String {
+                            query = pattern  // glob/grep tools
+                        } else if let url = rawInput["url"] as? String {
+                            query = url  // webfetch tool
+                        } else if let description = rawInput["description"] as? String {
+                            query = description  // fallback to description
+                        }
+                    }
+                    
                     Task { @MainActor in
-                        toolCallHandler?.addToolCall(id: toolCallId, title: displayTitle)
+                        toolCallHandler?.addToolCall(
+                            id: toolCallId,
+                            name: title,
+                            query: query,
+                            toolType: toolType
+                        )
                     }
                 }
+            } else {
+                print("⚠️ [OpenCodeStrategy] Tool call notification missing required fields")
+                print("⚠️ [OpenCodeStrategy] toolCallId: \(update["toolCallId"] ?? "nil")")
+                print("⚠️ [OpenCodeStrategy] title: \(update["title"] ?? "nil")")
+                print("⚠️ [OpenCodeStrategy] kind: \(update["kind"] ?? "nil")")
             }
             
         case "tool_call_update":
+            print("🔄 [OpenCodeStrategy] Tool call update notification received!")
+            print("🔄 [OpenCodeStrategy] Update data: \(update)")
             if let toolCallId = update["toolCallId"] as? String,
                let statusString = update["status"] as? String {
                 let status: ToolCall.Status = {
                     switch statusString {
-                    case "pending": return .pending
-                    case "in_progress": return .inProgress
                     case "completed": return .completed
                     case "failed": return .failed
                     case "cancelled": return .cancelled
-                    default: return .inProgress
+                    default: return .running
                     }
                 }()
                 
@@ -369,23 +459,47 @@ class OpenCodeStrategy: AIProviderStrategy {
                     }
                 }
                 
-                // Check if this update contains rawInput with subagent_type (for title update)
+                // Extract query and title updates from rawInput
                 var updatedTitle: String? = nil
-                if let rawInput = update["rawInput"] as? [String: Any],
-                   let subagentType = rawInput["subagent_type"] as? String {
-                    updatedTitle = "Delegate: \(subagentType)"
+                var updatedQuery: String? = nil
+                
+                if let rawInput = update["rawInput"] as? [String: Any] {
+                    // Check for subagent type (for delegation title)
+                    if let subagentType = rawInput["subagent_type"] as? String {
+                        updatedTitle = "Delegate: \(subagentType)"
+                    }
+                    
+                    // Extract query from rawInput (same logic as tool_call)
+                    if let command = rawInput["command"] as? String {
+                        updatedQuery = command
+                    } else if let filePath = rawInput["filePath"] as? String {
+                        updatedQuery = filePath
+                    } else if let pattern = rawInput["pattern"] as? String {
+                        updatedQuery = pattern
+                    } else if let url = rawInput["url"] as? String {
+                        updatedQuery = url
+                    } else if let description = rawInput["description"] as? String {
+                        updatedQuery = description
+                    }
                 }
                 
                 Task { @MainActor in
-                    toolCallHandler?.updateToolCall(id: toolCallId, status: status)
+                    // Update query first (if we have one)
+                    if let query = updatedQuery {
+                        toolCallHandler?.updateToolCallQuery(id: toolCallId, query: query)
+                    }
+                    // Update title if needed
                     if let newTitle = updatedTitle {
                         toolCallHandler?.updateToolCallTitle(id: toolCallId, title: newTitle)
                     }
+                    // Update status
+                    toolCallHandler?.updateToolCall(id: toolCallId, status: status)
                 }
             }
             
         default:
-            break
+            print("❓ [OpenCodeStrategy] Unhandled sessionUpdate: \(sessionUpdate)")
+            print("❓ [OpenCodeStrategy] Update content: \(update)")
         }
     }
     
@@ -421,21 +535,16 @@ class OpenCodeStrategy: AIProviderStrategy {
         let oldModel = selectedModel
         selectedModel = model
         
-        print("Sending session/set_model to OpenCode - sessionId: \(sessionId), modelId: \(model.id)")
-        
         let params: [String: Any] = [
             "sessionId": sessionId,
             "modelId": model.id
         ]
         
         do {
-            let startTime = Date()
             let (requestId, requestData) = try rpcClient.createRequest(method: "session/set_model", params: params)
             try processManager.write(requestData)
             
             let response = try await rpcClient.awaitResponse(forRequestId: requestId)
-            let duration = Date().timeIntervalSince(startTime)
-            print("session/set_model completed in \(duration)s")
             
             if let error = response.error {
                 selectedModel = oldModel
@@ -463,21 +572,16 @@ class OpenCodeStrategy: AIProviderStrategy {
         let oldMode = selectedMode
         selectedMode = mode
         
-        print("Sending session/set_mode to OpenCode - sessionId: \(sessionId), modeId: \(mode.id)")
-        
         let params: [String: Any] = [
             "sessionId": sessionId,
             "modeId": mode.id
         ]
         
         do {
-            let startTime = Date()
             let (requestId, requestData) = try rpcClient.createRequest(method: "session/set_mode", params: params)
             try processManager.write(requestData)
             
             let response = try await rpcClient.awaitResponse(forRequestId: requestId)
-            let duration = Date().timeIntervalSince(startTime)
-            print("session/set_mode completed in \(duration)s")
             
             if let error = response.error {
                 selectedMode = oldMode

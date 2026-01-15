@@ -144,11 +144,11 @@ class JSONRPCClient {
     
     private func handleMessage(_ data: Data) {
         guard let jsonString = String(data: data, encoding: .utf8) else {
-            print("[JSONRPC] Failed to decode message as UTF-8")
+            print("❌ [JSONRPCClient] Failed to decode data as UTF-8")
             return
         }
         
-        print("[JSONRPC] Received: \(jsonString.prefix(200))...")
+        print("📥 [JSONRPCClient] Raw message: \(jsonString)")
         
         let decoder = JSONDecoder()
         
@@ -156,7 +156,9 @@ class JSONRPCClient {
         if let response = try? decoder.decode(JSONRPCResponse.self, from: data),
            let id = response.id,
            let continuation = pendingRequests.removeValue(forKey: id) {
+            print("✅ [JSONRPCClient] Received response for request \(id)")
             if let error = response.error {
+                print("❌ [JSONRPCClient] Response contains error: \(error.message)")
                 continuation.resume(throwing: NSError(domain: "JSONRPCError", code: error.code, userInfo: [NSLocalizedDescriptionKey: error.message]))
             } else {
                 continuation.resume(returning: response)
@@ -167,11 +169,11 @@ class JSONRPCClient {
         // Try to decode as notification (has method but no id)
         if let notification = try? decoder.decode(JSONRPCNotification.self, from: data),
            !notification.method.isEmpty {
-            print("[JSONRPC] Dispatching notification: \(notification.method)")
+            print("🔔 [JSONRPCClient] Received notification: method=\(notification.method)")
             notificationHandler?(notification)
             return
         }
         
-        print("[JSONRPC] Failed to decode message as response or notification")
+        print("⚠️ [JSONRPCClient] Unable to decode message as response or notification")
     }
 }
