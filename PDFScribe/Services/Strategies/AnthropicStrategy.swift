@@ -110,4 +110,9 @@ class AnthropicStrategy: AIProviderStrategy {
     func selectMode(_ mode: AIMode) async throws {
         throw AIError.serverError("Modes not supported for Anthropic")
     }
+    
+    func cancel() {
+        // Anthropic uses URLSession which doesn't provide easy cancellation
+        // The Task cancellation in AIViewModel will handle stream termination
+    }
 }

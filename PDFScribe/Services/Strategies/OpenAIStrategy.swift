@@ -109,4 +109,9 @@ class OpenAIStrategy: AIProviderStrategy {
     func selectMode(_ mode: AIMode) async throws {
         throw AIError.serverError("Modes not supported for OpenAI")
     }
+    
+    func cancel() {
+        // OpenAI uses URLSession which doesn't provide easy cancellation
+        // The Task cancellation in AIViewModel will handle stream termination
+    }
 }

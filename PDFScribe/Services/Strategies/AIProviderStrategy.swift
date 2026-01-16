@@ -19,4 +19,5 @@ protocol AIProviderStrategy {
     func currentMode() -> AIMode?
     func selectModel(_ model: AIModel) async throws
     func selectMode(_ mode: AIMode) async throws
+    func cancel() // Cancel the current request
 }

@@ -205,6 +205,7 @@ PDFScribe/
 │   │   └── screen.png
 │   ├── liquid-glass-docs/
 │   │   └── README.md
+│   ├── list-of-animations.md
 │   └── nasa-Q1p7bh3SHj8-unsplash.jpg
 └── zed/
     ├── CLAUDE.md

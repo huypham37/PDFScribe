@@ -26,6 +26,29 @@ class OpenCodeStrategy: AIProviderStrategy {
     private var streamContinuation: AsyncThrowingStream<String, Error>.Continuation?
     private var streamCompletionTask: Task<Void, Never>? = nil
     
+    // Cancellation support
+    func cancel() {
+        print("🛑 [OpenCodeStrategy] Cancelling request - terminating process")
+        
+        // Terminate the current process
+        processManager?.terminate()
+        
+        // Reset state
+        processManager = nil
+        rpcClient = nil
+        sessionId = nil
+        isInitialized = false
+        activeDelegationId = nil
+        
+        // Finish the stream if it's active
+        streamContinuation?.finish()
+        streamContinuation = nil
+        streamCompletionTask?.cancel()
+        streamCompletionTask = nil
+        
+        print("✅ [OpenCodeStrategy] Cancellation complete - will reinitialize on next request")
+    }
+    
     init(binaryPath: String, workingDirectory: String? = nil) {
         self.binaryPath = binaryPath
         self.workingDirectory = workingDirectory ?? FileManager.default.homeDirectoryForCurrentUser.path

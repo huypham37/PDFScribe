@@ -56,7 +56,7 @@ class AIService: ObservableObject {
     @Published var currentMode: AIMode?
     @Published var isConnecting: Bool = false
     
-    private var currentStrategy: AIProviderStrategy?
+    var currentStrategy: AIProviderStrategy?
     weak var appViewModel: AppViewModel?
     weak var toolCallHandler: ToolCallHandler?
     weak var fileService: FileService?
