@@ -4,6 +4,7 @@ class AnthropicStrategy: AIProviderStrategy {
     private let apiKey: String
     private let endpoint = "https://api.anthropic.com/v1/messages"
     private var selectedModel: AIModel
+    private var currentStreamTask: Task<Void, Never>?
     
     private let models: [AIModel] = [
         AIModel(id: "claude-3-5-sonnet-20241022", name: "Claude 3.5 Sonnet", provider: .anthropic),
@@ -18,7 +19,7 @@ class AnthropicStrategy: AIProviderStrategy {
     
     func sendStream(message: String, context: AIContext) -> AsyncThrowingStream<String, Error> {
         return AsyncThrowingStream { continuation in
-            Task {
+            let task = Task {
                 do {
                     guard !self.apiKey.isEmpty else {
                         continuation.finish(throwing: AIError.invalidAPIKey)
@@ -81,6 +82,7 @@ class AnthropicStrategy: AIProviderStrategy {
                     continuation.finish(throwing: error)
                 }
             }
+            self.currentStreamTask = task
         }
     }
     
@@ -112,7 +114,7 @@ class AnthropicStrategy: AIProviderStrategy {
     }
     
     func cancel() {
-        // Anthropic uses URLSession which doesn't provide easy cancellation
-        // The Task cancellation in AIViewModel will handle stream termination
+        currentStreamTask?.cancel()
+        currentStreamTask = nil
     }
 }

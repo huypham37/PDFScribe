@@ -8,6 +8,7 @@ protocol ToolCallHandler: AnyObject {
     func updateToolCallQuery(id: String, query: String)
 }
 
+@MainActor
 class OpenCodeStrategy: AIProviderStrategy {
     private let binaryPath: String
     private let workingDirectory: String
