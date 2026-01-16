@@ -171,16 +171,18 @@ PDFScribe/
 │   │   │   ├── BadgeRow.swift
 │   │   │   ├── CitationPills.swift
 │   │   │   ├── CollapsibleSection.swift
+│   │   │   ├── ConnectionSplashView.swift
 │   │   │   ├── EditorialResponseView.swift
 │   │   │   ├── FloatingInputView.swift
 │   │   │   ├── LuxuryMarkdownTheme.swift
 │   │   │   ├── MarkdownTextView.swift
 │   │   │   ├── ReportView.swift
 │   │   │   ├── SourcesList.swift
-│   │   │   └── ToolCall/
-│   │   │       ├── ToolCallCard.swift
-│   │   │       ├── ToolCallSpotlightView.swift
-│   │   │       └── ToolCallTimelineView.swift
+│   │   │   ├── ToolCall/
+│   │   │   │   ├── ToolCallCard.swift
+│   │   │   │   ├── ToolCallSpotlightView.swift
+│   │   │   │   └── ToolCallTimelineView.swift
+│   │   │   └── TopRightConnectionIndicator.swift
 │   │   ├── Extensions/
 │   │   ├── MainSplitView.swift
 │   │   ├── Modifiers/

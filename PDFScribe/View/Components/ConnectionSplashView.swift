@@ -2,15 +2,24 @@ import SwiftUI
 
 struct ConnectionSplashView: View {
     let status: ConnectionStatus
+    let errorMessage: String?
     let onDismissAfterSuccess: (() -> Void)?
+    let onRetry: (() -> Void)?
     
     @State private var showCheckmark = false
     @State private var scaleAnimation = false
     @State private var isSpinning = false
     
-    init(status: ConnectionStatus, onDismissAfterSuccess: (() -> Void)? = nil) {
+    init(
+        status: ConnectionStatus,
+        errorMessage: String? = nil,
+        onDismissAfterSuccess: (() -> Void)? = nil,
+        onRetry: (() -> Void)? = nil
+    ) {
         self.status = status
+        self.errorMessage = errorMessage
         self.onDismissAfterSuccess = onDismissAfterSuccess
+        self.onRetry = onRetry
     }
     
     var body: some View {
@@ -63,6 +72,32 @@ struct ConnectionSplashView: View {
                     Text(subtitleText)
                         .font(.system(size: 14, weight: .medium))
                         .foregroundColor(.white.opacity(0.7))
+                    
+                    // Show error message and retry button if disconnected
+                    if status == .disconnected {
+                        if let errorMessage = errorMessage {
+                            Text(errorMessage)
+                                .font(.system(size: 12))
+                                .foregroundColor(.red.opacity(0.9))
+                                .multilineTextAlignment(.center)
+                                .padding(.top, 4)
+                                .padding(.horizontal, 32)
+                        }
+                        
+                        if let onRetry = onRetry {
+                            Button(action: onRetry) {
+                                Text("Retry Connection")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 24)
+                                    .padding(.vertical, 10)
+                                    .background(Color.brandPrimary)
+                                    .cornerRadius(8)
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.top, 16)
+                        }
+                    }
                 }
             }
         }
@@ -158,39 +193,23 @@ struct ConnectionSplashView: View {
 
 // MARK: - Subviews
 
-/// Continuous spinning loader using phaseAnimator for smooth rotation
+/// Continuous spinning loader using TimelineView for smooth rotation
 private struct SpinningLoader: View {
     let isSpinning: Bool
-    @State private var rotation: Double = 0
     
     var body: some View {
-        Circle()
-            .trim(from: 0, to: 0.7)
-            .stroke(
-                AngularGradient(
-                    colors: [.brandPrimary, .brandAccent, .brandPrimary],
-                    center: .center
-                ),
-                style: StrokeStyle(lineWidth: 4, lineCap: .round)
-            )
-            .frame(width: 50, height: 50)
-            .rotationEffect(.degrees(rotation))
-            .onAppear {
-                if isSpinning {
-                    startSpinning()
-                }
-            }
-            .onChange(of: isSpinning) { _, newValue in
-                if newValue {
-                    startSpinning()
-                }
-            }
-    }
-    
-    private func startSpinning() {
-        // Use a repeating animation that continuously updates
-        withAnimation(.linear(duration: 1.0).repeatForever(autoreverses: false)) {
-            rotation = 360
+        TimelineView(.animation) { context in
+            Circle()
+                .trim(from: 0, to: 0.7)
+                .stroke(
+                    AngularGradient(
+                        colors: [.brandPrimary, .brandAccent, .brandPrimary],
+                        center: .center
+                    ),
+                    style: StrokeStyle(lineWidth: 4, lineCap: .round)
+                )
+                .frame(width: 50, height: 50)
+                .rotationEffect(.degrees(isSpinning ? context.date.timeIntervalSinceReferenceDate * 360 : 0))
         }
     }
 }

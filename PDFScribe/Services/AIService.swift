@@ -76,8 +76,8 @@ class AIService: ObservableObject {
     @Published var availableModes: [AIMode] = []
     @Published var currentModel: AIModel?
     @Published var currentMode: AIMode?
-    @Published var isConnecting: Bool = false
     @Published var connectionStatus: ConnectionStatus = .disconnected
+    @Published var connectionError: String?
     
     private var currentStrategy: AIProviderStrategy?
     weak var appViewModel: AppViewModel?
@@ -196,15 +196,16 @@ class AIService: ObservableObject {
             // Proactively connect to OpenCode when switching to this provider
             Task { @MainActor in
                 connectionStatus = .connecting
-                isConnecting = true
+                connectionError = nil
                 do {
                     try await strategy.connect()
                     updateAvailableModelsAndModes()
                     connectionStatus = .connected
                 } catch {
                     connectionStatus = .disconnected
+                    connectionError = "Failed to connect to OpenCode: \(error.localizedDescription)"
+                    print("OpenCode connection error: \(error)")
                 }
-                isConnecting = false
             }
         }
         

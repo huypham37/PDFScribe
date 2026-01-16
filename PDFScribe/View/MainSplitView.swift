@@ -56,10 +56,22 @@ struct MainSplitView: View {
             
             // Full-screen connection splash (blocks interaction)
             if showSplash {
-                ConnectionSplashView(status: aiService.connectionStatus) {
-                    // Callback: dismiss splash after checkmark animation completes
-                    dismissSplashWithIndicator()
-                }
+                ConnectionSplashView(
+                    status: aiService.connectionStatus,
+                    errorMessage: aiService.connectionError,
+                    onDismissAfterSuccess: {
+                        // Callback: dismiss splash after checkmark animation completes
+                        dismissSplashWithIndicator()
+                    },
+                    onRetry: {
+                        // Retry connection by resetting the provider
+                        let currentProvider = aiService.provider
+                        aiService.provider = .openai // Switch away briefly
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            aiService.provider = currentProvider // Switch back to trigger reconnection
+                        }
+                    }
+                )
                 .transition(.opacity)
             }
         }
@@ -75,6 +87,10 @@ struct MainSplitView: View {
                 showSplash = true
                 splashDismissed = false
             }
+        }
+        .onDisappear {
+            // Cancel pending tasks to prevent memory leaks
+            indicatorDismissTask?.cancel()
         }
     }
     
