@@ -178,8 +178,7 @@ PDFScribe/
 │   │   │   ├── ReportView.swift
 │   │   │   ├── SourcesList.swift
 │   │   │   └── ToolCall/
-│   │   │       ├── ToolCallCard.swift
-│   │   │       ├── ToolCallSpotlightView.swift
+│   │   │       ├── CompactToolCallView.swift
 │   │   │       └── ToolCallTimelineView.swift
 │   │   ├── Extensions/
 │   │   ├── MainSplitView.swift

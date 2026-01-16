@@ -118,17 +118,10 @@ struct PremiumQuerySectionWithTools: View {
             let toolCallsToShow = isCurrentMessage ? aiViewModel.currentToolCalls : (response?.toolCalls ?? [])
             
             if !toolCallsToShow.isEmpty {
-                if isCurrentMessage && aiViewModel.isProcessing {
-                    // During execution - show spotlight for current running tool
-                    ToolCallSpotlightView(viewModel: aiViewModel)
-                        .padding(.horizontal, contentPadding)
-                        .padding(.bottom, 24)
-                } else {
-                    // After completion - show collapsed timeline
-                    ToolCallTimelineView(toolCalls: toolCallsToShow)
-                        .padding(.horizontal, contentPadding)
-                        .padding(.bottom, 24)
-                }
+                // Compact tool call display - same for running and completed
+                CompactToolCallView(toolCalls: toolCallsToShow)
+                    .padding(.horizontal, contentPadding)
+                    .padding(.bottom, 24)
             }
             
             // AI Response

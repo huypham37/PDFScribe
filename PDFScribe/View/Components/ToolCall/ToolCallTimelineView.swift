@@ -148,7 +148,7 @@ struct ToolCallTimelineView: View {
                             // Timeline dot and line
                             VStack(spacing: 0) {
                                 Circle()
-                                    .fill(Color.green)
+                                    .fill(Color.brandSecondary)
                                     .frame(width: 12, height: 12)
                                     .overlay(Circle().strokeBorder(Color(nsColor: .windowBackgroundColor), lineWidth: 2))
                                 
@@ -244,26 +244,26 @@ struct ToolCallTimelineView: View {
                     // Start node
                     HStack(spacing: 16) {
                         Circle()
-                            .fill(Color.green)
+                            .fill(Color.brandSecondary)
                             .frame(width: 20, height: 20)
                             .overlay(Circle().strokeBorder(Color(nsColor: .windowBackgroundColor), lineWidth: 4))
-                            .shadow(color: Color.green.opacity(0.3), radius: 4)
+                            .shadow(color: Color.brandSecondary.opacity(0.3), radius: 4)
                         
                         HStack(spacing: 8) {
                             Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(.green)
+                                .foregroundColor(.brandSecondary)
                             
                             Text("Start Execution")
                                 .font(.system(size: 13, weight: .bold))
-                                .foregroundColor(.green)
+                                .foregroundColor(.brandSecondary)
                         }
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
-                        .background(Color.green.opacity(0.1))
+                        .background(Color.brandSecondary.opacity(0.1))
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                         .overlay(
                             RoundedRectangle(cornerRadius: 8)
-                                .strokeBorder(Color.green.opacity(0.3), lineWidth: 2)
+                                .strokeBorder(Color.brandSecondary.opacity(0.3), lineWidth: 2)
                         )
                         
                         Spacer()
@@ -324,7 +324,7 @@ struct ToolCallTimelineView: View {
                                         Text("Complete")
                                             .font(.system(size: 12))
                                     }
-                                    .foregroundColor(.green)
+                                    .foregroundColor(.brandSecondary)
                                     
                                     Spacer()
                                     
@@ -353,32 +353,32 @@ struct ToolCallTimelineView: View {
                     // End node
                     HStack(spacing: 16) {
                         Circle()
-                            .fill(Color.green)
+                            .fill(Color.brandSecondary)
                             .frame(width: 20, height: 20)
                             .overlay(Circle().strokeBorder(Color(nsColor: .windowBackgroundColor), lineWidth: 4))
-                            .shadow(color: Color.green.opacity(0.3), radius: 4)
+                            .shadow(color: Color.brandSecondary.opacity(0.3), radius: 4)
                         
                         HStack(spacing: 8) {
                             Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(.green)
+                                .foregroundColor(.brandSecondary)
                             
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("Execution Complete")
                                     .font(.system(size: 13, weight: .bold))
-                                    .foregroundColor(.green)
+                                    .foregroundColor(.brandSecondary)
                                 
                                 Text("Total time: \(totalTimeString)")
                                     .font(.system(size: 11))
-                                    .foregroundColor(.green.opacity(0.8))
+                                    .foregroundColor(.brandSecondary.opacity(0.8))
                             }
                         }
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
-                        .background(Color.green.opacity(0.1))
+                        .background(Color.brandSecondary.opacity(0.1))
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                         .overlay(
                             RoundedRectangle(cornerRadius: 8)
-                                .strokeBorder(Color.green.opacity(0.3), lineWidth: 2)
+                                .strokeBorder(Color.brandSecondary.opacity(0.3), lineWidth: 2)
                         )
                         
                         Spacer()
