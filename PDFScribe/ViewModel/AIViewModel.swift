@@ -12,10 +12,32 @@ class AIViewModel: ObservableObject {
     private let streamController = StreamController()
     weak var appViewModel: AppViewModel?
     weak var fileService: FileService?
+    private var currentTask: Task<Void, Never>?
     
     init(aiService: AIService) {
         self.aiService = aiService
         aiService.setToolCallHandler(self)
+    }
+    
+    func cancelRequest() {
+        print("🛑 [AIViewModel] Cancel request called")
+        
+        // Cancel the ongoing task
+        currentTask?.cancel()
+        currentTask = nil
+        
+        // Call the strategy's cancel method to terminate the backend process
+        aiService.currentStrategy?.cancel()
+        
+        // Update UI state
+        isProcessing = false
+        
+        // Remove empty assistant message if present
+        if let lastMessage = messages.last, lastMessage.role == "assistant", lastMessage.content.isEmpty {
+            messages.removeLast()
+        }
+        
+        print("✅ [AIViewModel] Request cancelled")
     }
     
     func loadSession(_ session: ChatSession) {
@@ -61,7 +83,18 @@ class AIViewModel: ObservableObject {
         let assistantMessage = StoredMessage(role: "assistant", content: "")
         messages.append(assistantMessage)
         
-        Task(priority: .userInitiated) {
+        currentTask = Task(priority: .userInitiated) {
+            // Check for cancellation before starting
+            guard !Task.isCancelled else {
+                await MainActor.run {
+                    if let lastMessage = messages.last, lastMessage.role == "assistant", lastMessage.content.isEmpty {
+                        messages.removeLast()
+                    }
+                    isProcessing = false
+                }
+                return
+            }
+            
             let context = AIContext(
                 messages: [],
                 currentFile: fileService?.currentNoteURL,
@@ -84,6 +117,18 @@ class AIViewModel: ObservableObject {
             
             // Process chunks with smooth animation - no throttling needed
             for await chunk in controlledStream {
+                // Check for cancellation during streaming
+                guard !Task.isCancelled else {
+                    print("⏹️ [AIViewModel] Task cancelled during streaming")
+                    await MainActor.run {
+                        if let lastMessage = messages.last, lastMessage.role == "assistant", lastMessage.content.isEmpty {
+                            messages.removeLast()
+                        }
+                        isProcessing = false
+                    }
+                    return
+                }
+                
                 chunkCount += 1
                 fullResponse += chunk
                 hasReceivedContent = true
@@ -114,6 +159,7 @@ class AIViewModel: ObservableObject {
                 }
                 
                 isProcessing = false
+                currentTask = nil
             }
         }
     }

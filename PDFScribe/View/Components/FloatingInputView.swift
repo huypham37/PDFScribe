@@ -2,6 +2,7 @@ import SwiftUI
 
 struct FloatingInputView: View {
     @EnvironmentObject var aiViewModel: AIViewModel
+    @FocusState private var isFocused: Bool
     
     var body: some View {
         VStack(spacing: 16) {
@@ -17,21 +18,41 @@ struct FloatingInputView: View {
                     .textFieldStyle(.plain)
                     .font(.system(size: 15))
                     .lineLimit(1...10)
+                    .focused($isFocused)
+                    .onSubmit {
+                        if !aiViewModel.isProcessing {
+                            aiViewModel.sendMessage()
+                        }
+                    }
                 
                 Button(action: {
-                    aiViewModel.sendMessage()
+                    if aiViewModel.isProcessing {
+                        aiViewModel.cancelRequest()
+                    } else {
+                        aiViewModel.sendMessage()
+                    }
                 }) {
-                    Image(systemName: "arrow.up.circle.fill")
+                    Image(systemName: aiViewModel.isProcessing ? "stop.circle.fill" : "arrow.up.circle.fill")
                         .font(.system(size: 28))
-                        .foregroundColor(aiViewModel.currentInput.isEmpty ? .gray : .brandAccent)
+                        .foregroundColor(aiViewModel.isProcessing ? .red : (aiViewModel.currentInput.isEmpty ? .gray : .brandAccent))
                 }
                 .buttonStyle(.plain)
-                .disabled(aiViewModel.currentInput.isEmpty)
+                .disabled(!aiViewModel.isProcessing && aiViewModel.currentInput.isEmpty)
                 .keyboardShortcut(.return, modifiers: [])
             }
             .padding(16)
             .frame(maxWidth: 680)
             .glassBackground()
+            .onKeyPress(.escape) {
+                if aiViewModel.isProcessing {
+                    aiViewModel.cancelRequest()
+                    return .handled
+                }
+                return .ignored
+            }
+        }
+        .onAppear {
+            isFocused = true
         }
     }
 }
