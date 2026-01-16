@@ -8,6 +8,7 @@ protocol ToolCallHandler: AnyObject {
     func updateToolCallQuery(id: String, query: String)
 }
 
+@MainActor
 class OpenCodeStrategy: AIProviderStrategy {
     private let binaryPath: String
     private let workingDirectory: String
@@ -25,6 +26,29 @@ class OpenCodeStrategy: AIProviderStrategy {
     // Streaming support
     private var streamContinuation: AsyncThrowingStream<String, Error>.Continuation?
     private var streamCompletionTask: Task<Void, Never>? = nil
+    
+    // Cancellation support
+    func cancel() {
+        print("🛑 [OpenCodeStrategy] Cancelling request - terminating process")
+        
+        // Terminate the current process
+        processManager?.terminate()
+        
+        // Reset state
+        processManager = nil
+        rpcClient = nil
+        sessionId = nil
+        isInitialized = false
+        activeDelegationId = nil
+        
+        // Finish the stream if it's active
+        streamContinuation?.finish()
+        streamContinuation = nil
+        streamCompletionTask?.cancel()
+        streamCompletionTask = nil
+        
+        print("✅ [OpenCodeStrategy] Cancellation complete - will reinitialize on next request")
+    }
     
     init(binaryPath: String, workingDirectory: String? = nil) {
         self.binaryPath = binaryPath

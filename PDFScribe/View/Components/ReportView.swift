@@ -118,17 +118,10 @@ struct PremiumQuerySectionWithTools: View {
             let toolCallsToShow = isCurrentMessage ? aiViewModel.currentToolCalls : (response?.toolCalls ?? [])
             
             if !toolCallsToShow.isEmpty {
-                if isCurrentMessage && aiViewModel.isProcessing {
-                    // During execution - show spotlight for current running tool
-                    ToolCallSpotlightView(viewModel: aiViewModel)
-                        .padding(.horizontal, contentPadding)
-                        .padding(.bottom, 24)
-                } else {
-                    // After completion - show collapsed timeline
-                    ToolCallTimelineView(toolCalls: toolCallsToShow)
-                        .padding(.horizontal, contentPadding)
-                        .padding(.bottom, 24)
-                }
+                // Compact tool call display - same for running and completed
+                CompactToolCallView(toolCalls: toolCallsToShow)
+                    .padding(.horizontal, contentPadding)
+                    .padding(.bottom, 24)
             }
             
             // AI Response
@@ -145,6 +138,7 @@ struct PremiumQuerySectionWithTools: View {
 // MARK: - Floating Input Component
 struct FloatingInput: View {
     @EnvironmentObject var aiViewModel: AIViewModel
+    @FocusState private var isFocused: Bool
     
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
@@ -153,19 +147,37 @@ struct FloatingInput: View {
                 .font(.system(size: 15))
                 .lineLimit(1...10)
                 .padding(.vertical, 6)
+                .focused($isFocused)
+                .disabled(aiViewModel.isProcessing)
+                .onSubmit {
+                    if !aiViewModel.isProcessing {
+                        aiViewModel.sendMessage()
+                    }
+                }
             
             Button(action: {
-                aiViewModel.sendMessage()
+                if aiViewModel.isProcessing {
+                    aiViewModel.cancelRequest()
+                } else {
+                    aiViewModel.sendMessage()
+                }
             }) {
-                Image(systemName: "arrow.up.circle.fill")
+                Image(systemName: aiViewModel.isProcessing ? "stop.circle.fill" : "arrow.up.circle.fill")
                     .font(.system(size: 28))
-                    .foregroundColor(aiViewModel.currentInput.isEmpty || aiViewModel.isProcessing ? .gray : .brandAccent)
+                    .foregroundColor(aiViewModel.isProcessing ? .red : (aiViewModel.currentInput.isEmpty ? .gray : .brandAccent))
             }
             .buttonStyle(.plain)
-            .disabled(aiViewModel.currentInput.isEmpty || aiViewModel.isProcessing)
+            .disabled(!aiViewModel.isProcessing && aiViewModel.currentInput.isEmpty)
             .keyboardShortcut(.return, modifiers: [])
         }
         .padding(16)
         .glassBackground()
+        .onKeyPress(.escape) {
+            if aiViewModel.isProcessing {
+                aiViewModel.cancelRequest()
+                return .handled
+            }
+            return .ignored
+        }
     }
 }

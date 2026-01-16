@@ -13,9 +13,15 @@ actor StreamController {
                 let startTime = Date()
                 var chunkCount = 0
                 
+                defer {
+                    continuation.finish()
+                }
+                
                 do {
                     for try await chunk in input {
-                        if Task.isCancelled { break }
+                        if Task.isCancelled { 
+                            return  // Exit early, defer will finish continuation
+                        }
                         
                         chunkCount += 1
                         
@@ -25,9 +31,8 @@ actor StreamController {
                     }
                     
                 } catch {
+                    // Error logged, continuation finished by defer
                 }
-                
-                continuation.finish()
             }
         }
     }

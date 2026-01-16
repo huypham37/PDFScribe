@@ -4,6 +4,7 @@ class OpenAIStrategy: AIProviderStrategy {
     private let apiKey: String
     private let endpoint = "https://api.openai.com/v1/chat/completions"
     private var selectedModel: AIModel
+    private var currentStreamTask: Task<Void, Never>?
     
     private let models: [AIModel] = [
         AIModel(id: "gpt-4o", name: "GPT-4o", provider: .openai),
@@ -19,7 +20,7 @@ class OpenAIStrategy: AIProviderStrategy {
     
     func sendStream(message: String, context: AIContext) -> AsyncThrowingStream<String, Error> {
         return AsyncThrowingStream { continuation in
-            Task {
+            let task = Task {
                 do {
                     guard !self.apiKey.isEmpty else {
                         continuation.finish(throwing: AIError.invalidAPIKey)
@@ -80,6 +81,7 @@ class OpenAIStrategy: AIProviderStrategy {
                     continuation.finish(throwing: error)
                 }
             }
+            self.currentStreamTask = task
         }
     }
     
@@ -108,5 +110,10 @@ class OpenAIStrategy: AIProviderStrategy {
     
     func selectMode(_ mode: AIMode) async throws {
         throw AIError.serverError("Modes not supported for OpenAI")
+    }
+    
+    func cancel() {
+        currentStreamTask?.cancel()
+        currentStreamTask = nil
     }
 }

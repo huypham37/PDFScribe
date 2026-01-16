@@ -79,7 +79,7 @@ class AIService: ObservableObject {
     @Published var connectionStatus: ConnectionStatus = .disconnected
     @Published var connectionError: String?
     
-    private var currentStrategy: AIProviderStrategy?
+    var currentStrategy: AIProviderStrategy?
     weak var appViewModel: AppViewModel?
     weak var toolCallHandler: ToolCallHandler?
     weak var fileService: FileService?

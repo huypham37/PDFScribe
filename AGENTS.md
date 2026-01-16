@@ -171,18 +171,15 @@ PDFScribe/
 │   │   │   ├── BadgeRow.swift
 │   │   │   ├── CitationPills.swift
 │   │   │   ├── CollapsibleSection.swift
-│   │   │   ├── ConnectionSplashView.swift
 │   │   │   ├── EditorialResponseView.swift
 │   │   │   ├── FloatingInputView.swift
 │   │   │   ├── LuxuryMarkdownTheme.swift
 │   │   │   ├── MarkdownTextView.swift
 │   │   │   ├── ReportView.swift
 │   │   │   ├── SourcesList.swift
-│   │   │   ├── ToolCall/
-│   │   │   │   ├── ToolCallCard.swift
-│   │   │   │   ├── ToolCallSpotlightView.swift
-│   │   │   │   └── ToolCallTimelineView.swift
-│   │   │   └── TopRightConnectionIndicator.swift
+│   │   │   └── ToolCall/
+│   │   │       ├── CompactToolCallView.swift
+│   │   │       └── ToolCallTimelineView.swift
 │   │   ├── Extensions/
 │   │   ├── MainSplitView.swift
 │   │   ├── Modifiers/
@@ -208,6 +205,7 @@ PDFScribe/
 │   │   └── screen.png
 │   ├── liquid-glass-docs/
 │   │   └── README.md
+│   ├── list-of-animations.md
 │   └── nasa-Q1p7bh3SHj8-unsplash.jpg
 └── zed/
     ├── CLAUDE.md
