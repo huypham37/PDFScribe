@@ -7,6 +7,28 @@ enum AIProvider: String, CaseIterable {
     case opencode = "OpenCode"
 }
 
+enum ConnectionStatus {
+    case disconnected
+    case connecting
+    case connected
+    
+    var displayText: String {
+        switch self {
+        case .disconnected: return "Disconnected"
+        case .connecting: return "Connecting..."
+        case .connected: return "Connected"
+        }
+    }
+    
+    var iconName: String {
+        switch self {
+        case .disconnected: return "circle.fill"
+        case .connecting: return "circle.dotted"
+        case .connected: return "circle.fill"
+        }
+    }
+}
+
 enum TypingSpeed: Int, CaseIterable {
     case fast = 5       // 5ms → 200 chars/s (ChatGPT/GetStream standard)
     case normal = 10    // 10ms → 100 chars/s (smooth, balanced)
@@ -54,7 +76,8 @@ class AIService: ObservableObject {
     @Published var availableModes: [AIMode] = []
     @Published var currentModel: AIModel?
     @Published var currentMode: AIMode?
-    @Published var isConnecting: Bool = false
+    @Published var connectionStatus: ConnectionStatus = .disconnected
+    @Published var connectionError: String?
     
     var currentStrategy: AIProviderStrategy?
     weak var appViewModel: AppViewModel?
@@ -172,13 +195,17 @@ class AIService: ObservableObject {
             
             // Proactively connect to OpenCode when switching to this provider
             Task { @MainActor in
-                isConnecting = true
+                connectionStatus = .connecting
+                connectionError = nil
                 do {
                     try await strategy.connect()
                     updateAvailableModelsAndModes()
+                    connectionStatus = .connected
                 } catch {
+                    connectionStatus = .disconnected
+                    connectionError = "Failed to connect to OpenCode: \(error.localizedDescription)"
+                    print("OpenCode connection error: \(error)")
                 }
-                isConnecting = false
             }
         }
         

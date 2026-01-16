@@ -52,6 +52,7 @@ struct PDFScribeApp: App {
             MainSplitView()
                 .environmentObject(appViewModel)
                 .environmentObject(aiViewModel)
+                .environmentObject(aiService)
                 .environmentObject(fileService)
         }
         .windowStyle(.titleBar)

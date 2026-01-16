@@ -3,33 +3,150 @@ import SwiftUI
 struct MainSplitView: View {
     @EnvironmentObject var appViewModel: AppViewModel
     @EnvironmentObject var aiViewModel: AIViewModel
+    @EnvironmentObject var aiService: AIService
+    
+    @State private var showSplash: Bool = false
+    @State private var splashDismissed: Bool = false
+    @State private var showTopRightIndicator: Bool = false
+    @State private var indicatorDismissTask: Task<Void, Never>?
     
     var body: some View {
-        NavigationSplitView {
-            // Left sidebar - NavigationSplitView automatically applies Liquid Glass
-            SidebarView()
-                .environmentObject(appViewModel)
-                .navigationSplitViewColumnWidth(280)
-        } detail: {
-            // Main content area (opaque - the "content is clear" principle)
-            ZStack {
-                Color.brandBackground
-                    .ignoresSafeArea()
-                
-                // Chat home view with centered input
-                if aiViewModel.messages.isEmpty {
-                    FloatingInputView()
-                        .environmentObject(aiViewModel)
-                } else {
-                    // Research document view - NYT editorial style
-                    ReportView()
-                        .environmentObject(aiViewModel)
+        ZStack {
+            // Main content
+            NavigationSplitView {
+                // Left sidebar - NavigationSplitView automatically applies Liquid Glass
+                SidebarView()
+                    .environmentObject(appViewModel)
+                    .navigationSplitViewColumnWidth(280)
+            } detail: {
+                // Main content area (opaque - the "content is clear" principle)
+                ZStack {
+                    Color.brandBackground
+                        .ignoresSafeArea()
+                    
+                    // Chat home view with centered input
+                    if aiViewModel.messages.isEmpty {
+                        FloatingInputView()
+                            .environmentObject(aiViewModel)
+                    } else {
+                        // Research document view - NYT editorial style
+                        ReportView()
+                            .environmentObject(aiViewModel)
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .navigationSplitViewStyle(.balanced)
+            .frame(minWidth: 800, minHeight: 600)
+            .allowsHitTesting(!showSplash) // Block interaction when splash is showing
+            
+            // Top-right connection indicator (after splash dismisses, shows for 5 seconds)
+            if showTopRightIndicator && aiService.provider == .opencode {
+                VStack {
+                    HStack {
+                        Spacer()
+                        TopRightConnectionIndicator(status: aiService.connectionStatus)
+                            .padding(.top, 16)
+                            .padding(.trailing, 16)
+                    }
+                    Spacer()
+                }
+                .transition(.opacity)
+            }
+            
+            // Full-screen connection splash (blocks interaction)
+            if showSplash {
+                ConnectionSplashView(
+                    status: aiService.connectionStatus,
+                    errorMessage: aiService.connectionError,
+                    onDismissAfterSuccess: {
+                        // Callback: dismiss splash after checkmark animation completes
+                        dismissSplashWithIndicator()
+                    },
+                    onRetry: {
+                        // Retry connection by resetting the provider
+                        let currentProvider = aiService.provider
+                        aiService.provider = .openai // Switch away briefly
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            aiService.provider = currentProvider // Switch back to trigger reconnection
+                        }
+                    }
+                )
+                .transition(.opacity)
+            }
+        }
+        .onChange(of: aiService.connectionStatus) { oldValue, newValue in
+            handleConnectionStatusChange(oldValue: oldValue, newValue: newValue)
+        }
+        .onChange(of: aiService.provider) { oldValue, newValue in
+            handleProviderChange(newValue: newValue)
+        }
+        .onAppear {
+            // Show splash if starting with OpenCode provider
+            if aiService.provider == .opencode {
+                showSplash = true
+                splashDismissed = false
+            }
+        }
+        .onDisappear {
+            // Cancel pending tasks to prevent memory leaks
+            indicatorDismissTask?.cancel()
+        }
+    }
+    
+    private func handleConnectionStatusChange(oldValue: ConnectionStatus, newValue: ConnectionStatus) {
+        guard aiService.provider == .opencode else { return }
+        
+        // Show splash when connecting
+        if newValue == .connecting && !splashDismissed {
+            withAnimation(.easeInOut(duration: 0.3)) {
+                showSplash = true
+            }
+        }
+        
+        // Note: Splash dismissal is now handled by the callback from ConnectionSplashView
+        // This allows the checkmark animation to complete before dismissing
+        
+        // Handle disconnection while splash is showing
+        if newValue == .disconnected && showSplash {
+            // Keep splash visible to show error state
+            // User will need to retry or switch providers
+        }
+    }
+    
+    private func dismissSplashWithIndicator() {
+        withAnimation(.easeInOut(duration: 0.3)) {
+            showSplash = false
+            splashDismissed = true
+            showTopRightIndicator = true
+        }
+        
+        // Auto-dismiss top-right indicator after 5 seconds
+        indicatorDismissTask?.cancel()
+        indicatorDismissTask = Task {
+            try? await Task.sleep(nanoseconds: 5_000_000_000) // 5 seconds
+            await MainActor.run {
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    showTopRightIndicator = false
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .navigationSplitViewStyle(.balanced)
-        .frame(minWidth: 800, minHeight: 600)
+    }
+    
+    private func handleProviderChange(newValue: AIProvider) {
+        if newValue == .opencode {
+            // Show splash when switching to OpenCode
+            showSplash = true
+            splashDismissed = false
+            showTopRightIndicator = false
+            indicatorDismissTask?.cancel()
+        } else {
+            // Hide splash and indicator for non-OpenCode providers
+            showSplash = false
+            splashDismissed = false
+            showTopRightIndicator = false
+            indicatorDismissTask?.cancel()
+        }
     }
 }
 
