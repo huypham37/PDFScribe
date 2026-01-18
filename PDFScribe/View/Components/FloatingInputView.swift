@@ -24,7 +24,7 @@ struct FloatingInputView: View {
                 .padding(.bottom, 32)
             
             // Input container with glass effect
-            HStack(alignment: .bottom, spacing: 12) {
+            HStack(alignment: .center, spacing: 12) {
                 TextField(placeholderText, text: $aiViewModel.currentInput, axis: .vertical)
                     .textFieldStyle(.plain)
                     .font(.system(size: 15))
