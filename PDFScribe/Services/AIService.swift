@@ -25,6 +25,13 @@ enum TypingSpeed: Int, CaseIterable {
     }
 }
 
+enum ConnectionState {
+    case disconnected
+    case connecting
+    case connected
+    case failed
+}
+
 enum AIError: Error {
     case invalidAPIKey
     case invalidResponse
@@ -54,7 +61,7 @@ class AIService: ObservableObject {
     @Published var availableModes: [AIMode] = []
     @Published var currentModel: AIModel?
     @Published var currentMode: AIMode?
-    @Published var isConnecting: Bool = false
+    @Published var connectionState: ConnectionState = .disconnected
     
     private var currentStrategy: AIProviderStrategy?
     weak var appViewModel: AppViewModel?
@@ -172,13 +179,14 @@ class AIService: ObservableObject {
             
             // Proactively connect to OpenCode when switching to this provider
             Task { @MainActor in
-                isConnecting = true
+                connectionState = .connecting
                 do {
                     try await strategy.connect()
                     updateAvailableModelsAndModes()
+                    connectionState = .connected
                 } catch {
+                    connectionState = .failed
                 }
-                isConnecting = false
             }
         }
         
