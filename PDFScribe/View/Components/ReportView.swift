@@ -20,6 +20,7 @@ struct ReportView: View {
                                 )
                                 .environmentObject(aiViewModel)
                                 .id(aiViewModel.messages[index].id)
+                                .padding(.top, index == 0 ? 32 : 0)
                                 .transition(.opacity.combined(with: .move(edge: .bottom)))
                                 
                                 // Divider between sections (except after last)
@@ -37,12 +38,15 @@ struct ReportView: View {
                         Color.clear.frame(height: 140)
                     }
                 }
-                .onChange(of: aiViewModel.messages.count) {
-                    // Auto-scroll to show new query with animation
-                    if let lastMessage = aiViewModel.messages.last {
-                        withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
-                            proxy.scrollTo(lastMessage.id, anchor: .top)
-                        }
+                .onChange(of: aiViewModel.messages.count) { _, newCount in
+                    // Scroll to show new query at top of viewport
+                    // Query is at index count-2 (user), response is at count-1 (assistant)
+                    guard newCount >= 2 else { return }
+                    let queryIndex = newCount - 2
+                    let queryId = aiViewModel.messages[queryIndex].id
+                    
+                    withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
+                        proxy.scrollTo(queryId, anchor: .top)
                     }
                 }
             }
