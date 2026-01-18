@@ -10,50 +10,65 @@ struct EditorialResponseView: View {
     
     var body: some View {
         let structured = parser.parseIntoSections(message.content)
+        let isThinking = message.content.isEmpty
         
         return VStack(alignment: .leading, spacing: 0) {
-            // Badges row
-            BadgeRow(
-                modelName: modelName,
-                sourceCount: structured.references.count
-            )
-            .padding(.bottom, 20)
-            
-            // Summary (if exists)
-            if let summary = structured.summary, !summary.isEmpty {
-                Markdown(summary)
-                    .markdownTheme(.luxury)
-                    .textSelection(.enabled)
-                    .padding(.bottom, 24)
-            }
-            
-            // Collapsible sections
-            if !structured.sections.isEmpty {
-                VStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(structured.sections.enumerated()), id: \.element.id) { index, section in
-                        CollapsibleSection(
-                            section: section,
-                            isExpanded: expandedSections.contains(section.id),
-                            onToggle: {
-                                toggleSection(section.id)
-                            },
-                            onCitationTap: { citationNumber in
-                                scrollToSource(citationNumber)
+            // Show thinking animation when content is empty
+            if isThinking {
+                VStack(alignment: .leading, spacing: 12) {
+                    BadgeRow(
+                        modelName: modelName,
+                        sourceCount: 0
+                    )
+                    
+                    ScribbleThinkingView()
+                        .padding(.top, 8)
+                }
+                .padding(.bottom, 20)
+            } else {
+                // Badges row
+                BadgeRow(
+                    modelName: modelName,
+                    sourceCount: structured.references.count
+                )
+                .padding(.bottom, 20)
+                
+                // Summary (if exists)
+                if let summary = structured.summary, !summary.isEmpty {
+                    Markdown(summary)
+                        .markdownTheme(.luxury)
+                        .textSelection(.enabled)
+                        .padding(.bottom, 24)
+                }
+                
+                // Collapsible sections
+                if !structured.sections.isEmpty {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(Array(structured.sections.enumerated()), id: \.element.id) { index, section in
+                            CollapsibleSection(
+                                section: section,
+                                isExpanded: expandedSections.contains(section.id),
+                                onToggle: {
+                                    toggleSection(section.id)
+                                },
+                                onCitationTap: { citationNumber in
+                                    scrollToSource(citationNumber)
+                                }
+                            )
+                            
+                            // Divider between sections (except last)
+                            if index < structured.sections.count - 1 {
+                                Divider()
+                                    .background(Color.brandBackgroundSecondary)
+                                    .padding(.top, 20)
                             }
-                        )
-                        
-                        // Divider between sections (except last)
-                        if index < structured.sections.count - 1 {
-                            Divider()
-                                .background(Color.brandBackgroundSecondary)
-                                .padding(.top, 20)
                         }
                     }
                 }
+                
+                // Sources list
+                SourcesList(references: structured.references)
             }
-            
-            // Sources list
-            SourcesList(references: structured.references)
         }
         .onAppear {
             // Auto-expand first section
