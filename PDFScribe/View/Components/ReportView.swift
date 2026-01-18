@@ -77,7 +77,7 @@ struct PremiumQuerySection: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .textSelection(.enabled)
                 .padding(.top, 32)
-                .padding(.bottom, 32)
+                .padding(.bottom, 16)
                 .padding(.horizontal, contentPadding)
             
             // AI Response with collapsible sections
@@ -110,7 +110,7 @@ struct PremiumQuerySectionWithTools: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .textSelection(.enabled)
                 .padding(.top, 32)
-                .padding(.bottom, 32)
+                .padding(.bottom, 16)
                 .padding(.horizontal, contentPadding)
             
             // Tool Call Display

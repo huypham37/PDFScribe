@@ -30,6 +30,7 @@ The app drives its research capabilities using **OpenCode**, a local AI service.
 
 - When working with new windows, always provides a wireframes before executing. 
 - I ask you to break view into modular components instead putting everything into a single, massive file. 
+- ALWAYS: give me the wireframes before executing.
 
 
 
