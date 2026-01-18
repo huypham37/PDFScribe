@@ -61,6 +61,7 @@ struct ReportView: View {
 
 // MARK: - Premium Query Section Component
 struct PremiumQuerySection: View {
+    @EnvironmentObject var aiService: AIService
     let query: StoredMessage
     let response: StoredMessage?
     
@@ -81,7 +82,7 @@ struct PremiumQuerySection: View {
             
             // AI Response with collapsible sections
             if let response = response {
-                EditorialResponseView(message: response, modelName: "AI Assistant")
+                EditorialResponseView(message: response, modelName: aiService.currentModel?.name ?? aiService.provider.rawValue)
                     .padding(.horizontal, contentPadding)
                     .padding(.bottom, 32)
             }
@@ -93,6 +94,7 @@ struct PremiumQuerySection: View {
 // MARK: - Query Section with Tool Calls
 struct PremiumQuerySectionWithTools: View {
     @EnvironmentObject var aiViewModel: AIViewModel
+    @EnvironmentObject var aiService: AIService
     let query: StoredMessage
     let response: StoredMessage?
     
@@ -133,7 +135,7 @@ struct PremiumQuerySectionWithTools: View {
             
             // AI Response
             if let response = response {
-                EditorialResponseView(message: response, modelName: "AI Assistant")
+                EditorialResponseView(message: response, modelName: aiService.currentModel?.name ?? aiService.provider.rawValue)
                     .padding(.horizontal, contentPadding)
                     .padding(.bottom, 32)
             }
