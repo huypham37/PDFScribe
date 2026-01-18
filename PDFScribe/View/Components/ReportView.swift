@@ -38,15 +38,32 @@ struct ReportView: View {
                         Color.clear.frame(height: 140)
                     }
                 }
-                .onChange(of: aiViewModel.messages.count) { _, newCount in
+                .onChange(of: aiViewModel.messages.count) { oldCount, newCount in
+                    print("🔄 [ReportView] Messages count changed: \(oldCount) -> \(newCount)")
+                    
                     // Scroll to show new query at top of viewport
                     // Query is at index count-2 (user), response is at count-1 (assistant)
-                    guard newCount >= 2 else { return }
-                    let queryIndex = newCount - 2
-                    let queryId = aiViewModel.messages[queryIndex].id
+                    guard newCount >= 2 else { 
+                        print("⚠️ [ReportView] Not enough messages to scroll")
+                        return 
+                    }
                     
-                    withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
-                        proxy.scrollTo(queryId, anchor: .top)
+                    let queryIndex = newCount - 2
+                    guard queryIndex >= 0 && queryIndex < aiViewModel.messages.count else {
+                        print("⚠️ [ReportView] Invalid query index: \(queryIndex)")
+                        return
+                    }
+                    
+                    let queryId = aiViewModel.messages[queryIndex].id
+                    print("📍 [ReportView] Will scroll to query at index \(queryIndex), id: \(queryId)")
+                    
+                    // Delay slightly to ensure view has rendered
+                    Task { @MainActor in
+                        try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 second delay
+                        print("✅ [ReportView] Executing scroll to \(queryId)")
+                        withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
+                            proxy.scrollTo(queryId, anchor: .top)
+                        }
                     }
                 }
             }
