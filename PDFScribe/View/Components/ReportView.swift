@@ -12,16 +12,18 @@ struct ReportView: View {
                 ScrollView {
                     VStack(alignment: .center, spacing: 0) {
                         // Group messages into query-response pairs
-                        ForEach(Array(stride(from: 0, to: aiViewModel.messages.count, by: 2)), id: \.self) { index in
+                        ForEach(0..<(aiViewModel.messages.count / 2 + aiViewModel.messages.count % 2), id: \.self) { pairIndex in
+                            let index = pairIndex * 2
                             if index < aiViewModel.messages.count {
+                            let queryMessage = aiViewModel.messages[index]
+                            
+                            VStack(alignment: .leading, spacing: 0) {
                                 PremiumQuerySectionWithTools(
-                                    query: aiViewModel.messages[index],
+                                    query: queryMessage,
                                     response: index + 1 < aiViewModel.messages.count ? aiViewModel.messages[index + 1] : nil
                                 )
                                 .environmentObject(aiViewModel)
-                                .id(aiViewModel.messages[index].id)
-                                .padding(.top, index == 0 ? 32 : 0)
-                                .transition(.opacity.combined(with: .move(edge: .bottom)))
+                                .id("anchor-\(queryMessage.id)")  // Attach ID directly to the real view
                                 
                                 // Divider between sections (except after last)
                                 if index + 2 < aiViewModel.messages.count {
@@ -29,41 +31,54 @@ struct ReportView: View {
                                         .background(Color.brandBackgroundSecondary)
                                         .frame(height: 1)
                                         .padding(.horizontal, contentPadding)
-                                        .padding(.vertical, 24)
+                                        .padding(.vertical, 16)
                                 }
                             }
                         }
+                        }
                         
-                        // Bottom padding for floating input
-                        Color.clear.frame(height: 140)
+                        // Phantom spacer - provides scroll runway so new queries can reach the top
+                        // Height roughly matches screen height to ensure proper scrolling
+                        Color.clear
+                            .frame(height: 600)
+                            .id("phantom-spacer")
                     }
                 }
                 .onChange(of: aiViewModel.messages.count) { oldCount, newCount in
-                    print("🔄 [ReportView] Messages count changed: \(oldCount) -> \(newCount)")
+                    print("🔄 [Scroll] Messages count changed: \(oldCount) -> \(newCount)")
                     
-                    // Scroll to show new query at top of viewport
-                    // Query is at index count-2 (user), response is at count-1 (assistant)
-                    guard newCount >= 2 else { 
-                        print("⚠️ [ReportView] Not enough messages to scroll")
-                        return 
+                    // Scroll when a new Q&A pair is added (count increases by 2)
+                    // This happens when user sends a message (user msg + assistant placeholder added together)
+                    guard newCount > oldCount && newCount >= 2 else {
+                        print("⚠️ [Scroll] Not enough messages or count didn't increase, skipping")
+                        return
                     }
                     
+                    // Find the new user query (second-to-last message)
                     let queryIndex = newCount - 2
                     guard queryIndex >= 0 && queryIndex < aiViewModel.messages.count else {
-                        print("⚠️ [ReportView] Invalid query index: \(queryIndex)")
+                        print("⚠️ [Scroll] Invalid queryIndex: \(queryIndex)")
+                        return
+                    }
+                    
+                    // Verify it's actually a user message
+                    guard aiViewModel.messages[queryIndex].role == "user" else {
+                        print("⚠️ [Scroll] Message at index \(queryIndex) is not a user message, skipping")
                         return
                     }
                     
                     let queryId = aiViewModel.messages[queryIndex].id
-                    print("📍 [ReportView] Will scroll to query at index \(queryIndex), id: \(queryId)")
+                    let anchorId = "anchor-\(queryId)"
+                    print("📍 [Scroll] Will scroll to new query: \(anchorId)")
                     
-                    // Delay slightly to ensure view has rendered
+                    // Scroll immediately when user sends message (before streaming starts)
                     Task { @MainActor in
-                        try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 second delay
-                        print("✅ [ReportView] Executing scroll to \(queryId)")
-                        withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
-                            proxy.scrollTo(queryId, anchor: .top)
+                        try? await Task.sleep(nanoseconds: 200_000_000) // 0.2s delay for anchor to appear
+                        print("✅ [Scroll] Executing scrollTo(\(anchorId), anchor: .top)")
+                        withAnimation(.easeInOut(duration: 0.5)) {
+                            proxy.scrollTo(anchorId, anchor: .top)
                         }
+                        print("✅ [Scroll] scrollTo completed")
                     }
                 }
             }

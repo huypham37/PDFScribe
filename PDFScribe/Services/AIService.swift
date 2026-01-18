@@ -5,6 +5,7 @@ enum AIProvider: String, CaseIterable {
     case openai = "OpenAI"
     case anthropic = "Anthropic"
     case opencode = "OpenCode"
+    case mock = "Mock"
 }
 
 enum TypingSpeed: Int, CaseIterable {
@@ -21,6 +22,22 @@ enum TypingSpeed: Int, CaseIterable {
         case .fast: return "Fast"
         case .normal: return "Normal"
         case .relaxed: return "Relaxed"
+        }
+    }
+}
+
+enum FadeInSpeed: Double, CaseIterable {
+    case instant = 0.0   // No animation
+    case fast = 0.1      // Quick fade
+    case normal = 0.3    // Balanced
+    case smooth = 0.5    // Slow, smooth
+    
+    var displayName: String {
+        switch self {
+        case .instant: return "Instant"
+        case .fast: return "Fast"
+        case .normal: return "Normal"
+        case .smooth: return "Smooth"
         }
     }
 }
@@ -57,6 +74,7 @@ class AIService: ObservableObject {
     @Published var provider: AIProvider = .openai
     @Published var opencodePath: String = "/usr/local/bin/opencode"
     @Published var typingSpeed: TypingSpeed = .normal
+    @Published var fadeInSpeed: FadeInSpeed = .normal
     @Published var availableModels: [AIModel] = []
     @Published var availableModes: [AIMode] = []
     @Published var currentModel: AIModel?
@@ -188,6 +206,9 @@ class AIService: ObservableObject {
                     connectionState = .failed
                 }
             }
+        case .mock:
+            currentStrategy = MockAIStrategy(typingSpeed: typingSpeed)
+            connectionState = .connected
         }
         
         // Don't call loadOrCreateSession() here - it's called when project is set

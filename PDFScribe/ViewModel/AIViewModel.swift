@@ -23,10 +23,22 @@ class AIViewModel: ObservableObject {
     }
     
     private func updateAssistantMessage(content: String) async {
-        print("💬 [AIViewModel] Updating assistant message: length=\(content.count), preview=\"\(String(content.prefix(50)))...\"")
         await MainActor.run {
-            // Use smooth animation for text updates (0.3s fade-in)
-            withAnimation(.easeOut(duration: 0.3)) {
+            // Use fade-in speed from settings
+            let duration = aiService.fadeInSpeed.rawValue
+            if duration > 0 {
+                withAnimation(.easeOut(duration: duration)) {
+                    if let lastIndex = messages.indices.last {
+                        messages[lastIndex] = StoredMessage(
+                            id: messages[lastIndex].id,
+                            role: "assistant",
+                            content: content,
+                            timestamp: messages[lastIndex].timestamp
+                        )
+                    }
+                }
+            } else {
+                // Instant update (no animation)
                 if let lastIndex = messages.indices.last {
                     messages[lastIndex] = StoredMessage(
                         id: messages[lastIndex].id,
@@ -76,26 +88,21 @@ class AIViewModel: ObservableObject {
             let rawStream = aiService.sendMessageStream(message, context: context)
             let controlledStream = await streamController.process(rawStream, speed: aiService.typingSpeed)
             
+            // Wait for scroll animation to complete before starting stream
+            // This separates "scroll to position" from "start typing" phases
+            try? await Task.sleep(nanoseconds: 600_000_000) // 0.6s delay
+            
             var fullResponse = ""
             var hasReceivedContent = false
-            var chunkCount = 0
-            
-            print("🚀 [AIViewModel] Starting to process stream...")
             
             // Process chunks with smooth animation - no throttling needed
             for await chunk in controlledStream {
-                chunkCount += 1
                 fullResponse += chunk
                 hasReceivedContent = true
-                
-                print("📦 [AIViewModel] Chunk #\(chunkCount): \"\(chunk)\" (total length now: \(fullResponse.count))")
                 
                 // Update UI immediately with animation
                 await updateAssistantMessage(content: fullResponse)
             }
-            
-            print("🏁 [AIViewModel] Stream ended. Total chunks: \(chunkCount), final length: \(fullResponse.count)")
-            print("📄 [AIViewModel] Final content: \"\(fullResponse)\"")
             
             // Final update to ensure complete message is shown
             await updateAssistantMessage(content: fullResponse)
