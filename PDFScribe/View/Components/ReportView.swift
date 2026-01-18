@@ -152,9 +152,9 @@ struct FloatingInput: View {
         HStack(alignment: .center, spacing: 12) {
             TextField("Ask anything...", text: $aiViewModel.currentInput, axis: .vertical)
                 .textFieldStyle(.plain)
-                .font(.system(size: 15))
+                .font(.system(size: 17))
                 .lineLimit(1...10)
-                .padding(.vertical, 6)
+                .padding(.leading, 8)
             
             Button(action: {
                 aiViewModel.sendMessage()
@@ -167,7 +167,9 @@ struct FloatingInput: View {
             .disabled(aiViewModel.currentInput.isEmpty || aiViewModel.isProcessing)
             .keyboardShortcut(.return, modifiers: [])
         }
-        .padding(16)
+        .padding(.vertical, 16)
+        .padding(.leading, 16)
+        .padding(.trailing, 16)
         .glassBackground()
     }
 }
