@@ -27,9 +27,10 @@ struct FloatingInputView: View {
             HStack(alignment: .center, spacing: 12) {
                 TextField(placeholderText, text: $aiViewModel.currentInput, axis: .vertical)
                     .textFieldStyle(.plain)
-                    .font(.system(size: 15))
+                    .font(.system(size: 17))
                     .lineLimit(1...10)
                     .disabled(isInputDisabled)
+                    .padding(.leading, 8)
                 
                 Button(action: {
                     aiViewModel.sendMessage()
@@ -42,7 +43,9 @@ struct FloatingInputView: View {
                 .disabled(aiViewModel.currentInput.isEmpty || isInputDisabled)
                 .keyboardShortcut(.return, modifiers: [])
             }
-            .padding(16)
+            .padding(.vertical, 16)
+            .padding(.leading, 16)
+            .padding(.trailing, 16)
             .frame(maxWidth: 680)
             .glassBackground()
         }
