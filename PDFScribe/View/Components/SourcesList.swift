@@ -20,7 +20,7 @@ struct SourcesList: View {
                     }
                 }
             }
-            .padding(.top, 24)
+            .padding(.top, 5)
         }
     }
 }

@@ -70,7 +70,7 @@ private struct CitationTextViewRepresentable: NSViewRepresentable {
         
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.lineSpacing = 4
-        paragraphStyle.paragraphSpacing = 12
+        paragraphStyle.paragraphSpacing = 8
         
         let baseAttributes: [NSAttributedString.Key: Any] = [
             .font: NSFont(name: "Palatino", size: 17) ?? NSFont.systemFont(ofSize: 17),
@@ -80,8 +80,9 @@ private struct CitationTextViewRepresentable: NSViewRepresentable {
         
         let blocks = parseMarkdownBlocks(cleaned)
         
-        for block in blocks {
-            let blockString = processBlock(block, baseAttributes: baseAttributes)
+        for (index, block) in blocks.enumerated() {
+            let isLastBlock = index == blocks.count - 1
+            let blockString = processBlock(block, baseAttributes: baseAttributes, isLastBlock: isLastBlock)
             result.append(blockString)
         }
         
@@ -171,6 +172,7 @@ private struct CitationTextViewRepresentable: NSViewRepresentable {
                 let headerMatch = trimmed[match]
                 let level = headerMatch.prefix(while: { $0 == "#" }).count
                 let text = String(trimmed.dropFirst(level).trimmingCharacters(in: .whitespaces))
+                print("🎯 Found header level \(level): '\(text)'")
                 blocks.append(.header(level: level, text: text))
                 continue
             }
@@ -212,20 +214,24 @@ private struct CitationTextViewRepresentable: NSViewRepresentable {
     
     // MARK: - Block Processing
     
-    private func processBlock(_ block: MarkdownBlock, baseAttributes: [NSAttributedString.Key: Any]) -> NSAttributedString {
+    private func processBlock(_ block: MarkdownBlock, baseAttributes: [NSAttributedString.Key: Any], isLastBlock: Bool = false) -> NSAttributedString {
         let result = NSMutableAttributedString()
         
         switch block {
         case .paragraph(let text):
             result.append(processInlineFormatting(text, baseAttributes: baseAttributes))
-            result.append(NSAttributedString(string: "\n\n"))
+            if !isLastBlock {
+                result.append(NSAttributedString(string: "\n"))
+            }
             
         case .header(let level, let text):
             var headerAttributes = baseAttributes
             let fontSize: CGFloat = level == 1 ? 24 : (level == 2 ? 20 : 17)
             headerAttributes[.font] = NSFont(name: "Charter-Bold", size: fontSize) ?? NSFont.boldSystemFont(ofSize: fontSize)
             result.append(processInlineFormatting(text, baseAttributes: headerAttributes))
-            result.append(NSAttributedString(string: "\n\n"))
+            if !isLastBlock {
+                result.append(NSAttributedString(string: "\n"))
+            }
             
         case .bulletList(let items):
             for item in items {
@@ -241,7 +247,9 @@ private struct CitationTextViewRepresentable: NSViewRepresentable {
                 result.append(processInlineFormatting(item, baseAttributes: itemAttributes))
                 result.append(NSAttributedString(string: "\n"))
             }
-            result.append(NSAttributedString(string: "\n"))
+            if !isLastBlock {
+                result.append(NSAttributedString(string: "\n"))
+            }
             
         case .numberedList(let items):
             for (index, item) in items.enumerated() {
@@ -257,14 +265,18 @@ private struct CitationTextViewRepresentable: NSViewRepresentable {
                 result.append(processInlineFormatting(item, baseAttributes: itemAttributes))
                 result.append(NSAttributedString(string: "\n"))
             }
-            result.append(NSAttributedString(string: "\n"))
+            if !isLastBlock {
+                result.append(NSAttributedString(string: "\n"))
+            }
             
         case .codeBlock(let code):
             var codeAttributes = baseAttributes
             codeAttributes[.font] = NSFont(name: "SFMono-Regular", size: 14) ?? NSFont.monospacedSystemFont(ofSize: 14, weight: .regular)
             codeAttributes[.backgroundColor] = NSColor.quaternaryLabelColor.withAlphaComponent(0.3)
             result.append(NSAttributedString(string: code, attributes: codeAttributes))
-            result.append(NSAttributedString(string: "\n\n"))
+            if !isLastBlock {
+                result.append(NSAttributedString(string: "\n\n"))
+            }
         }
         
         return result

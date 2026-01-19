@@ -31,7 +31,7 @@ struct ReportView: View {
                                         .background(Color.brandBackgroundSecondary)
                                         .frame(height: 1)
                                         .padding(.horizontal, contentPadding)
-                                        .padding(.vertical, 16)
+                                        .padding(.vertical, 32)
                                 }
                             }
                         }
