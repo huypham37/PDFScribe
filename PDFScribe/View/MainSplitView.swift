@@ -12,29 +12,51 @@ struct MainSplitView: View {
                 .environmentObject(appViewModel)
                 .navigationSplitViewColumnWidth(280)
         } detail: {
-            // Main content area (opaque - the "content is clear" principle)
-            ZStack(alignment: .topTrailing) {
-                ZStack {
-                    Color.brandBackground
-                        .ignoresSafeArea()
-                    
-                    // Chat home view with centered input
-                    if aiViewModel.messages.isEmpty {
-                        FloatingInputView()
-                            .environmentObject(aiViewModel)
-                    } else {
-                        // Research document view - NYT editorial style
-                        ReportView()
-                            .environmentObject(aiViewModel)
+            // Main content area with optional inspector
+            GeometryReader { geometry in
+                HStack(spacing: 0) {
+                    // Report/Chat content (left side of detail)
+                    ZStack(alignment: .topTrailing) {
+                        ZStack {
+                            Color.brandBackground
+                                .ignoresSafeArea()
+                            
+                            // Chat home view with centered input
+                            if aiViewModel.messages.isEmpty {
+                                FloatingInputView()
+                                    .environmentObject(aiViewModel)
+                            } else {
+                                // Research document view - NYT editorial style
+                                ReportView()
+                                    .environmentObject(aiViewModel)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        
+                        // Connection status indicator in top-right corner (only on empty state)
+                        if aiService.provider == .opencode && aiViewModel.messages.isEmpty {
+                            ConnectionStatusView(state: aiService.connectionState)
+                                .padding(.top, 16)
+                                .padding(.trailing, 16)
+                        }
                     }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                
-                // Connection status indicator in top-right corner (only on empty state)
-                if aiService.provider == .opencode && aiViewModel.messages.isEmpty {
-                    ConnectionStatusView(state: aiService.connectionState)
-                        .padding(.top, 16)
-                        .padding(.trailing, 16)
+                    .frame(width: aiViewModel.selectedCitationURL != nil ? geometry.size.width * 0.55 : geometry.size.width)
+                    .transaction { $0.animation = nil }  // Force immediate frame update (fixes text jiggling)
+                    
+                    // Source Inspector (right side of detail, only when citation selected)
+                    if let citationURL = aiViewModel.selectedCitationURL {
+                        Divider()
+                        
+                        SourceInspectorView(
+                            url: citationURL,
+                            onClose: {
+                                aiViewModel.closeCitation()
+                            }
+                        )
+                        .frame(width: geometry.size.width * 0.45)
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
+                        .animation(.easeInOut(duration: 0.25), value: citationURL)  // Animate inspector appearance
+                    }
                 }
             }
         }

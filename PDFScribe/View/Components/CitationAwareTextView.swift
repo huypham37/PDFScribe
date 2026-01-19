@@ -49,12 +49,18 @@ private struct CitationTextViewRepresentable: NSViewRepresentable {
     }
     
     func updateNSView(_ textView: CitationNSTextView, context: Context) {
+        // Update coordinator with latest data
+        context.coordinator.citations = citations
+        context.coordinator.onCitationTap = onCitationTap
+        
+        // Update text content
         updateContent(textView)
     }
     
     private func updateContent(_ textView: CitationNSTextView) {
+        guard let textStorage = textView.textStorage else { return }
         let attributedString = buildAttributedString()
-        textView.textStorage?.setAttributedString(attributedString)
+        textStorage.setAttributedString(attributedString)
         textView.invalidateIntrinsicContentSize()
     }
     
@@ -451,8 +457,8 @@ private struct CitationTextViewRepresentable: NSViewRepresentable {
     // MARK: - Coordinator
     
     class Coordinator: NSObject, NSTextViewDelegate {
-        let onCitationTap: ((Int) -> Void)?
-        let citations: CitationContext
+        var onCitationTap: ((Int) -> Void)?
+        var citations: CitationContext
         weak var textView: CitationNSTextView?
         
         init(onCitationTap: ((Int) -> Void)?, citations: CitationContext) {
@@ -463,13 +469,33 @@ private struct CitationTextViewRepresentable: NSViewRepresentable {
         func textView(_ textView: NSTextView, clickedOnLink link: Any, at charIndex: Int) -> Bool {
             guard let url = link as? URL else { return false }
             
+            // Check if this is a citation link (either citation:// or a source URL from a citation)
             if url.scheme == "citation" {
+                // citation://N format
                 if let number = Int(url.host ?? "") {
-                    onCitationTap?(number)
+                    Task { @MainActor in
+                        onCitationTap?(number)
+                    }
                 }
                 return true
             }
             
+            // For real URLs, check if they came from a citation by looking up in context
+            // If we have an onCitationTap handler, this is a citation-aware view
+            // Find which citation this URL belongs to
+            if let onTap = onCitationTap {
+                for (number, citation) in citations.citations {
+                    if let sourceURL = citation.sourceURL,
+                       sourceURL == url.absoluteString {
+                        Task { @MainActor in
+                            onTap(number)
+                        }
+                        return true
+                    }
+                }
+            }
+            
+            // Not a citation link, open in external browser
             NSWorkspace.shared.open(url)
             return true
         }
@@ -492,6 +518,11 @@ private class CitationNSTextView: NSTextView {
             width: NSView.noIntrinsicMetric,
             height: usedRect.height + textContainerInset.height * 2
         )
+    }
+    
+    override func layout() {
+        super.layout()
+        invalidateIntrinsicContentSize()
     }
     
     override func didChangeText() {
