@@ -23,6 +23,7 @@ struct StructuredMessage {
     let summary: String?
     let sections: [MarkdownSection]
     let references: [String]
+    let citationContext: CitationContext
 }
 
 class MessageParser {
@@ -52,9 +53,23 @@ class MessageParser {
     func parseIntoSections(_ rawMessage: String) -> StructuredMessage {
         var references: [String] = []
         var referenceMap: [String: Int] = [:]
+        var citationContext = CitationContext()
         
         // Extract citations first
         let contentWithCitations = extractCitations(from: rawMessage, references: &references, referenceMap: &referenceMap)
+        
+        // Build citation context from references
+        for (index, url) in references.enumerated() {
+            let citationNumber = index + 1
+            var citation = Citation(id: citationNumber, sourceURL: url)
+            
+            // Extract domain from URL for display
+            if let urlObj = URL(string: url) {
+                citation.sourceDomain = urlObj.host
+            }
+            
+            citationContext.addCitation(citation)
+        }
         
         // Parse sections by ## headers
         let sections = splitIntoSections(contentWithCitations)
@@ -74,7 +89,8 @@ class MessageParser {
         return StructuredMessage(
             summary: summary,
             sections: namedSections,
-            references: references
+            references: references,
+            citationContext: citationContext
         )
     }
     

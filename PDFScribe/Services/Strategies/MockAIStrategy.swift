@@ -72,14 +72,19 @@ class MockAIStrategy: AIProviderStrategy {
         
         if lowercaseMessage.contains("test") {
             return """
-            This is a **mock response** for testing purposes. Here are some features being tested:
+            This is a **mock response** for testing purposes [1]. Here are some features being tested:
             
-            - Streaming text rendering
-            - Auto-scroll behavior
+            - Streaming text rendering [2]
+            - Auto-scroll behavior [3]
             - Markdown formatting support
             - Message history
+            - Inline citation badges [1][2][3]
             
-            The mock service simulates real AI responses without API costs!
+            The mock service simulates real AI responses without API costs [1]!
+            
+            [1]: https://developer.apple.com/documentation/swiftui
+            [2]: https://www.swift.org/documentation/
+            [3]: https://github.com/apple/swift
             """
         }
         
@@ -120,41 +125,60 @@ class MockAIStrategy: AIProviderStrategy {
             return """
             # Testing Auto-Scroll with Long Response
             
-            This is a longer mock response designed to test the auto-scroll functionality.
+            This is a longer mock response designed to test the auto-scroll functionality [1].
             
             ## Section 1: Introduction
             
-            Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
+            Lorem ipsum dolor sit amet, consectetur adipiscing elit [2]. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
             
             ## Section 2: Details
             
-            Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
+            Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris [3] nisi ut aliquip ex ea commodo consequat.
             
             ### Subsection 2.1
             
-            Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.
+            Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore [1][2] eu fugiat nulla pariatur.
             
             ### Subsection 2.2
             
-            Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+            Excepteur sint occaecat cupidatat non proident [4], sunt in culpa qui officia deserunt mollit anim id est laborum.
             
             ## Section 3: Conclusion
             
-            This concludes the mock response. The auto-scroll should position this content appropriately.
+            This concludes the mock response [1][2][3][4]. The auto-scroll should position this content appropriately.
+            
+            [1]: https://developer.apple.com/documentation/swiftui
+            [2]: https://www.swift.org/documentation/
+            [3]: https://github.com/apple/swift
+            [4]: https://swift.org/getting-started/
             """
         }
         
-        // Default generic response
+        // Default generic response with citations
         return """
         I'm a mock AI assistant running in test mode. You asked: "\(message)"
         
-        This is a simulated response with **Markdown formatting** support:
+        This is a simulated response with **Markdown formatting** support and inline citations [1]:
         
-        - No API costs
-        - Instant responses
+        - No API costs [2]
+        - Instant responses [3]
         - Perfect for UI testing
         
+        ## Research Findings
+        
+        Recent studies [1][2] have shown that mock testing significantly improves development speed. The implementation uses SwiftUI [3] for native macOS integration.
+        
+        According to the documentation [1], this approach provides several benefits:
+        
+        1. Faster iteration cycles [2]
+        2. Reduced API costs [3]
+        3. Consistent test results
+        
         Try asking about "test", "code", "list", or "scroll" for different response types!
+        
+        [1]: https://developer.apple.com/documentation/swiftui
+        [2]: https://www.swift.org/documentation/
+        [3]: https://github.com/apple/swift
         """
     }
 }

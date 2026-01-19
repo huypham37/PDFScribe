@@ -1,13 +1,13 @@
 import SwiftUI
-import MarkdownUI
+import Textual
 
 struct MarkdownTextView: View {
     let content: String
     
     var body: some View {
-        Markdown(content)
-            .markdownTheme(.luxury)
-            .textSelection(.enabled)
+        StructuredText(markdown: content)
+            .textual.structuredTextStyle(.luxury)
+            .textual.textSelection(.enabled)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

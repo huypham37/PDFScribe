@@ -1,5 +1,4 @@
 import SwiftUI
-import MarkdownUI
 
 struct EditorialResponseView: View {
     let message: StoredMessage
@@ -35,10 +34,14 @@ struct EditorialResponseView: View {
                 
                 // Summary (if exists)
                 if let summary = structured.summary, !summary.isEmpty {
-                    Markdown(summary)
-                        .markdownTheme(.luxury)
-                        .textSelection(.enabled)
-                        .padding(.bottom, 24)
+                    CitationAwareTextView(
+                        markdown: summary,
+                        citations: structured.citationContext,
+                        onCitationTap: { citationNumber in
+                            scrollToSource(citationNumber)
+                        }
+                    )
+                    .padding(.bottom, 24)
                 }
                 
                 // Collapsible sections
@@ -47,6 +50,7 @@ struct EditorialResponseView: View {
                         ForEach(Array(structured.sections.enumerated()), id: \.element.id) { index, section in
                             CollapsibleSection(
                                 section: section,
+                                citations: structured.citationContext,
                                 isExpanded: expandedSections.contains(section.id),
                                 onToggle: {
                                     toggleSection(section.id)

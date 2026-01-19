@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		04617F242F13E0B2006681D3 /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = 041C808C2F13771D009945C5 /* MarkdownUI */; };
+		0463B8992F1E1459001943A4 /* Textual in Frameworks */ = {isa = PBXBuildFile; productRef = 0463B8982F1E1459001943A4 /* Textual */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -56,7 +56,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				04617F242F13E0B2006681D3 /* MarkdownUI in Frameworks */,
+				0463B8992F1E1459001943A4 /* Textual in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -83,6 +83,7 @@
 				041A68942F0F85EF00468B7D /* PDFScribe */,
 				041A68A42F0F85F000468B7D /* PDFScribeTests */,
 				041A68AE2F0F85F000468B7D /* PDFScribeUITests */,
+				0463B8972F1E1459001943A4 /* Frameworks */,
 				041A68932F0F85EF00468B7D /* Products */,
 			);
 			sourceTree = "<group>";
@@ -95,6 +96,13 @@
 				041A68AB2F0F85F000468B7D /* PDFScribeUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		0463B8972F1E1459001943A4 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -117,7 +125,7 @@
 			);
 			name = PDFScribe;
 			packageProductDependencies = (
-				041C808C2F13771D009945C5 /* MarkdownUI */,
+				0463B8982F1E1459001943A4 /* Textual */,
 			);
 			productName = PDFScribe;
 			productReference = 041A68922F0F85EF00468B7D /* PDFScribe.app */;
@@ -202,7 +210,7 @@
 			mainGroup = 041A68892F0F85EF00468B7D;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				041C808B2F137713009945C5 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */,
+				0463B8942F1E1318001943A4 /* XCRemoteSwiftPackageReference "textual" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 041A68932F0F85EF00468B7D /* Products */;
@@ -582,21 +590,21 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		041C808B2F137713009945C5 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */ = {
+		0463B8942F1E1318001943A4 /* XCRemoteSwiftPackageReference "textual" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/gonzalezreal/swift-markdown-ui";
+			repositoryURL = "https://github.com/gonzalezreal/textual";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 2.4.1;
+				minimumVersion = 0.2.1;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		041C808C2F13771D009945C5 /* MarkdownUI */ = {
+		0463B8982F1E1459001943A4 /* Textual */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 041C808B2F137713009945C5 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */;
-			productName = MarkdownUI;
+			package = 0463B8942F1E1318001943A4 /* XCRemoteSwiftPackageReference "textual" */;
+			productName = Textual;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
