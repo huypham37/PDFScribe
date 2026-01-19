@@ -53,6 +53,7 @@ struct PDFScribeApp: App {
                 .environmentObject(appViewModel)
                 .environmentObject(aiViewModel)
                 .environmentObject(fileService)
+                .environmentObject(aiService)
         }
         .windowStyle(.titleBar)
         .commands {

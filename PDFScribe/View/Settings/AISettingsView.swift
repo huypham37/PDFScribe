@@ -16,6 +16,9 @@ struct AISettingsView: View {
             Section("Settings") {
                 if aiService.provider == .opencode {
                     TextField("OpenCode Path", text: $aiService.opencodePath)
+                } else if aiService.provider == .mock {
+                    Text("Mock provider - no configuration needed")
+                        .foregroundColor(.secondary)
                 } else {
                     SecureField("API Key", text: $aiService.apiKey)
                 }
@@ -26,6 +29,13 @@ struct AISettingsView: View {
                     }
                 }
                 .help("Controls how fast AI responses appear character-by-character")
+                
+                Picker("Fade-In Effect", selection: $aiService.fadeInSpeed) {
+                    ForEach(FadeInSpeed.allCases, id: \.self) { speed in
+                        Text("\(speed.displayName) (\(String(format: "%.1f", speed.rawValue))s)").tag(speed)
+                    }
+                }
+                .help("Controls the smoothness of text fade-in animation")
             }
             
             Button("Save") {

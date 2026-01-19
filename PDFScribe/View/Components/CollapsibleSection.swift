@@ -1,8 +1,8 @@
 import SwiftUI
-import MarkdownUI
 
 struct CollapsibleSection: View {
     let section: MarkdownSection
+    let citations: CitationContext
     let isExpanded: Bool
     let onToggle: () -> Void
     let onCitationTap: ((Int) -> Void)?
@@ -35,14 +35,12 @@ struct CollapsibleSection: View {
             
             // Content
             if isExpanded {
-                VStack(alignment: .leading, spacing: 0) {
-                    Markdown(section.content)
-                        .markdownTheme(.luxury)
-                        .textSelection(.enabled)
-                        .transition(.opacity.combined(with: .move(edge: .top)))
-                    
-                    CitationPills(content: section.content, onCitationTap: onCitationTap)
-                }
+                CitationAwareTextView(
+                    markdown: section.content,
+                    citations: citations,
+                    onCitationTap: onCitationTap
+                )
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
         .padding(.top, 20)

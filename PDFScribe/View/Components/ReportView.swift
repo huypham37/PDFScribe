@@ -12,15 +12,18 @@ struct ReportView: View {
                 ScrollView {
                     VStack(alignment: .center, spacing: 0) {
                         // Group messages into query-response pairs
-                        ForEach(Array(stride(from: 0, to: aiViewModel.messages.count, by: 2)), id: \.self) { index in
+                        ForEach(0..<(aiViewModel.messages.count / 2 + aiViewModel.messages.count % 2), id: \.self) { pairIndex in
+                            let index = pairIndex * 2
                             if index < aiViewModel.messages.count {
+                            let queryMessage = aiViewModel.messages[index]
+                            
+                            VStack(alignment: .leading, spacing: 0) {
                                 PremiumQuerySectionWithTools(
-                                    query: aiViewModel.messages[index],
+                                    query: queryMessage,
                                     response: index + 1 < aiViewModel.messages.count ? aiViewModel.messages[index + 1] : nil
                                 )
                                 .environmentObject(aiViewModel)
-                                .id(aiViewModel.messages[index].id)
-                                .transition(.opacity.combined(with: .move(edge: .bottom)))
+                                .id("anchor-\(queryMessage.id)")  // Attach ID directly to the real view
                                 
                                 // Divider between sections (except after last)
                                 if index + 2 < aiViewModel.messages.count {
@@ -28,21 +31,54 @@ struct ReportView: View {
                                         .background(Color.brandBackgroundSecondary)
                                         .frame(height: 1)
                                         .padding(.horizontal, contentPadding)
-                                        .padding(.vertical, 24)
+                                        .padding(.vertical, 16)
                                 }
                             }
                         }
+                        }
                         
-                        // Bottom padding for floating input
-                        Color.clear.frame(height: 140)
+                        // Phantom spacer - provides scroll runway so new queries can reach the top
+                        // Height roughly matches screen height to ensure proper scrolling
+                        Color.clear
+                            .frame(height: 600)
+                            .id("phantom-spacer")
                     }
                 }
-                .onChange(of: aiViewModel.messages.count) {
-                    // Auto-scroll to show new query with animation
-                    if let lastMessage = aiViewModel.messages.last {
-                        withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
-                            proxy.scrollTo(lastMessage.id, anchor: .top)
+                .onChange(of: aiViewModel.messages.count) { oldCount, newCount in
+                    print("🔄 [Scroll] Messages count changed: \(oldCount) -> \(newCount)")
+                    
+                    // Scroll when a new Q&A pair is added (count increases by 2)
+                    // This happens when user sends a message (user msg + assistant placeholder added together)
+                    guard newCount > oldCount && newCount >= 2 else {
+                        print("⚠️ [Scroll] Not enough messages or count didn't increase, skipping")
+                        return
+                    }
+                    
+                    // Find the new user query (second-to-last message)
+                    let queryIndex = newCount - 2
+                    guard queryIndex >= 0 && queryIndex < aiViewModel.messages.count else {
+                        print("⚠️ [Scroll] Invalid queryIndex: \(queryIndex)")
+                        return
+                    }
+                    
+                    // Verify it's actually a user message
+                    guard aiViewModel.messages[queryIndex].role == "user" else {
+                        print("⚠️ [Scroll] Message at index \(queryIndex) is not a user message, skipping")
+                        return
+                    }
+                    
+                    let queryId = aiViewModel.messages[queryIndex].id
+                    let anchorId = "anchor-\(queryId)"
+                    print("📍 [Scroll] Will scroll to new query: \(anchorId)")
+                    
+                    // Scroll immediately when user sends message (before streaming starts)
+                    Task { @MainActor in
+                        try? await Task.sleep(nanoseconds: 200_000_000) // 0.2s delay for anchor to appear
+                        print("✅ [Scroll] Executing scrollTo(\(anchorId), anchor: .top)")
+                        withAnimation(.easeInOut(duration: 0.5)) {
+                            proxy.scrollTo(anchorId, anchor: .top)
                         }
+                        print("✅ [Scroll] scrollTo completed")
                     }
                 }
             }
@@ -61,6 +97,7 @@ struct ReportView: View {
 
 // MARK: - Premium Query Section Component
 struct PremiumQuerySection: View {
+    @EnvironmentObject var aiService: AIService
     let query: StoredMessage
     let response: StoredMessage?
     
@@ -76,12 +113,12 @@ struct PremiumQuerySection: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .textSelection(.enabled)
                 .padding(.top, 32)
-                .padding(.bottom, 32)
+                .padding(.bottom, 16)
                 .padding(.horizontal, contentPadding)
             
             // AI Response with collapsible sections
             if let response = response {
-                EditorialResponseView(message: response, modelName: "AI Assistant")
+                EditorialResponseView(message: response, modelName: aiService.currentModel?.name ?? aiService.provider.rawValue)
                     .padding(.horizontal, contentPadding)
                     .padding(.bottom, 32)
             }
@@ -93,6 +130,7 @@ struct PremiumQuerySection: View {
 // MARK: - Query Section with Tool Calls
 struct PremiumQuerySectionWithTools: View {
     @EnvironmentObject var aiViewModel: AIViewModel
+    @EnvironmentObject var aiService: AIService
     let query: StoredMessage
     let response: StoredMessage?
     
@@ -108,7 +146,7 @@ struct PremiumQuerySectionWithTools: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .textSelection(.enabled)
                 .padding(.top, 32)
-                .padding(.bottom, 32)
+                .padding(.bottom, 16)
                 .padding(.horizontal, contentPadding)
             
             // Tool Call Display
@@ -133,7 +171,7 @@ struct PremiumQuerySectionWithTools: View {
             
             // AI Response
             if let response = response {
-                EditorialResponseView(message: response, modelName: "AI Assistant")
+                EditorialResponseView(message: response, modelName: aiService.currentModel?.name ?? aiService.provider.rawValue)
                     .padding(.horizontal, contentPadding)
                     .padding(.bottom, 32)
             }
@@ -150,9 +188,9 @@ struct FloatingInput: View {
         HStack(alignment: .center, spacing: 12) {
             TextField("Ask anything...", text: $aiViewModel.currentInput, axis: .vertical)
                 .textFieldStyle(.plain)
-                .font(.system(size: 15))
+                .font(.system(size: 17))
                 .lineLimit(1...10)
-                .padding(.vertical, 6)
+                .padding(.leading, 8)
             
             Button(action: {
                 aiViewModel.sendMessage()
@@ -165,7 +203,9 @@ struct FloatingInput: View {
             .disabled(aiViewModel.currentInput.isEmpty || aiViewModel.isProcessing)
             .keyboardShortcut(.return, modifiers: [])
         }
-        .padding(16)
+        .padding(.vertical, 16)
+        .padding(.leading, 16)
+        .padding(.trailing, 16)
         .glassBackground()
     }
 }

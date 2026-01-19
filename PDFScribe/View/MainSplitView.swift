@@ -3,6 +3,7 @@ import SwiftUI
 struct MainSplitView: View {
     @EnvironmentObject var appViewModel: AppViewModel
     @EnvironmentObject var aiViewModel: AIViewModel
+    @EnvironmentObject var aiService: AIService
     
     var body: some View {
         NavigationSplitView {
@@ -12,21 +13,30 @@ struct MainSplitView: View {
                 .navigationSplitViewColumnWidth(280)
         } detail: {
             // Main content area (opaque - the "content is clear" principle)
-            ZStack {
-                Color.brandBackground
-                    .ignoresSafeArea()
+            ZStack(alignment: .topTrailing) {
+                ZStack {
+                    Color.brandBackground
+                        .ignoresSafeArea()
+                    
+                    // Chat home view with centered input
+                    if aiViewModel.messages.isEmpty {
+                        FloatingInputView()
+                            .environmentObject(aiViewModel)
+                    } else {
+                        // Research document view - NYT editorial style
+                        ReportView()
+                            .environmentObject(aiViewModel)
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 
-                // Chat home view with centered input
-                if aiViewModel.messages.isEmpty {
-                    FloatingInputView()
-                        .environmentObject(aiViewModel)
-                } else {
-                    // Research document view - NYT editorial style
-                    ReportView()
-                        .environmentObject(aiViewModel)
+                // Connection status indicator in top-right corner (only on empty state)
+                if aiService.provider == .opencode && aiViewModel.messages.isEmpty {
+                    ConnectionStatusView(state: aiService.connectionState)
+                        .padding(.top, 16)
+                        .padding(.trailing, 16)
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .navigationSplitViewStyle(.balanced)
         .frame(minWidth: 800, minHeight: 600)

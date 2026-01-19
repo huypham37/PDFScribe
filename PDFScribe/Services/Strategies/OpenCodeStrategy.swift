@@ -154,14 +154,10 @@ class OpenCodeStrategy: AIProviderStrategy {
         
         // Check if response contains stopReason
         if let result = response.result?.value as? [String: Any],
-           let stopReason = result["stopReason"] as? String {
-            print("✅ [OpenCodeStrategy] Prompt request completed with stopReason: \(stopReason)")
-            
+           let _ = result["stopReason"] as? String {
             // Schedule delayed stream completion to allow buffered notifications to be processed
             // The notification handler will cancel this if agent_message_complete arrives
             scheduleStreamCompletion(delay: 0.1) // 100ms buffer
-        } else {
-            print("✅ [OpenCodeStrategy] Prompt request completed, waiting for notification events...")
         }
     }
     
@@ -170,16 +166,11 @@ class OpenCodeStrategy: AIProviderStrategy {
         // Cancel any existing scheduled completion
         streamCompletionTask?.cancel()
         
-        print("⏰ [OpenCodeStrategy] Scheduling stream completion in \(delay)s...")
         streamCompletionTask = Task { @MainActor in
             try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
             
-            guard !Task.isCancelled else {
-                print("❌ [OpenCodeStrategy] Scheduled completion was cancelled")
-                return
-            }
+            guard !Task.isCancelled else { return }
             
-            print("⏱️ [OpenCodeStrategy] Delay elapsed, finishing stream now")
             finishStream()
         }
     }
@@ -322,24 +313,17 @@ class OpenCodeStrategy: AIProviderStrategy {
         guard let params = notification.params?.value as? [String: Any],
               let update = params["update"] as? [String: Any],
               let sessionUpdate = update["sessionUpdate"] as? String else {
-            print("⚠️ [OpenCodeStrategy] Failed to parse notification params")
             return
         }
         
         guard notification.method == "session/update" else { 
-            print("ℹ️ [OpenCodeStrategy] Ignoring non-session/update method: \(notification.method)")
             return 
         }
-        
-        print("📨 [OpenCodeStrategy] Notification: sessionUpdate=\(sessionUpdate)")
-        print("🔍 [OpenCodeStrategy] Update keys: \(update.keys.sorted())")
-        print("🔍 [OpenCodeStrategy] Full update: \(update)")
         
         switch sessionUpdate {
         case "agent_message_chunk":
             // Suppress text chunks while a delegation is active (sub-agent output)
             if activeDelegationId != nil {
-                print("🚫 [OpenCodeStrategy] Suppressing chunk - delegation active")
                 return
             }
             
@@ -347,17 +331,13 @@ class OpenCodeStrategy: AIProviderStrategy {
                let type = content["type"] as? String,
                type == "text",
                let text = content["text"] as? String {
-                print("📝 [OpenCodeStrategy] Yielding chunk: \"\(text)\" (length: \(text.count))")
                 // Yield chunk to stream on MainActor
                 Task { @MainActor in
                     self.streamContinuation?.yield(text)
                 }
-            } else {
-                print("⚠️ [OpenCodeStrategy] agent_message_chunk but no text content found")
             }
         
         case "agent_message_complete", "turn_complete", "agent_turn_complete":
-            print("✅ [OpenCodeStrategy] Stream complete notification: \(sessionUpdate)")
             // Agent finished generating response - finish the stream immediately
             // Cancel any scheduled delayed completion
             Task { @MainActor in
@@ -365,18 +345,12 @@ class OpenCodeStrategy: AIProviderStrategy {
             }
             
          case "tool_call":
-            print("🔧 [OpenCodeStrategy] Tool call notification received!")
-            print("🔧 [OpenCodeStrategy] Tool call data: \(update)")
-            
             if let toolCallId = update["toolCallId"] as? String,
                let title = update["title"] as? String,
                let kind = update["kind"] as? String {
                 
-                print("🔧 [OpenCodeStrategy] Tool call: id=\(toolCallId), name=\(title), query=\(kind)")
-                
                 // If a delegation is active, ignore all subsequent tool calls (they're from sub-agent)
                 if activeDelegationId != nil {
-                    print("🚫 [OpenCodeStrategy] Suppressing tool call - delegation active")
                     return
                 }
                 
@@ -431,16 +405,9 @@ class OpenCodeStrategy: AIProviderStrategy {
                         )
                     }
                 }
-            } else {
-                print("⚠️ [OpenCodeStrategy] Tool call notification missing required fields")
-                print("⚠️ [OpenCodeStrategy] toolCallId: \(update["toolCallId"] ?? "nil")")
-                print("⚠️ [OpenCodeStrategy] title: \(update["title"] ?? "nil")")
-                print("⚠️ [OpenCodeStrategy] kind: \(update["kind"] ?? "nil")")
             }
             
         case "tool_call_update":
-            print("🔄 [OpenCodeStrategy] Tool call update notification received!")
-            print("🔄 [OpenCodeStrategy] Update data: \(update)")
             if let toolCallId = update["toolCallId"] as? String,
                let statusString = update["status"] as? String {
                 let status: ToolCall.Status = {
@@ -498,8 +465,7 @@ class OpenCodeStrategy: AIProviderStrategy {
             }
             
         default:
-            print("❓ [OpenCodeStrategy] Unhandled sessionUpdate: \(sessionUpdate)")
-            print("❓ [OpenCodeStrategy] Update content: \(update)")
+            break
         }
     }
     
